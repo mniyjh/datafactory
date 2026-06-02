@@ -1,0 +1,245 @@
+{
+  "_任务说明": "验证 COMP_SCRIPT + COMP_FILTER 的 IO 参数联动",
+  "_流程": "START(outputParams定义初始参数) → SCRIPT(inputParams引用START, outputParams定义输出) → FILTER(sourceNodeId指向SCRIPT, outputParams定义过滤结果) → END",
+
+  "task": {
+    "taskCode": "VERIFY_SCRIPT_FILTER",
+    "taskName": "脚本与过滤组件验证",
+    "description": "验证 inputParams/outputParams 的 UPSTREAM_OUTPUT 联动: START定义参数→SCRIPT引用→SCRIPT输出→FILTER过滤→END汇总"
+  },
+
+  "dsl": {
+    "schemaVersion": 3,
+    "nodes": [
+      {
+        "id": "s1",
+        "type": "START",
+        "name": "开始",
+        "componentCode": "COMP_START",
+        "componentId": 1,
+        "position": {"x": 100, "y": 200},
+        "fieldValues": {},
+        "inputParams": [],
+
+        "outputParams": [
+          {
+            "paramCode": "dataCount",
+            "paramName": "生成条数",
+            "dataType": "NUMBER",
+            "paramSpace": "TASK",
+            "defaultValue": "12"
+          },
+          {
+            "paramCode": "minAmount",
+            "paramName": "最低单价",
+            "dataType": "NUMBER",
+            "paramSpace": "TASK",
+            "defaultValue": "50"
+          },
+          {
+            "paramCode": "maxAmount",
+            "paramName": "最高单价",
+            "dataType": "NUMBER",
+            "paramSpace": "TASK",
+            "defaultValue": "3000"
+          },
+          {
+            "paramCode": "categoryList",
+            "paramName": "商品类别",
+            "dataType": "STRING",
+            "paramSpace": "TASK",
+            "defaultValue": "食品,电子,服装,家居,运动"
+          }
+        ]
+      },
+
+      {
+        "id": "sc1",
+        "type": "SCRIPT",
+        "name": "生成模拟订单",
+        "componentCode": "COMP_SCRIPT",
+        "componentId": 5,
+        "position": {"x": 340, "y": 200},
+        "fieldValues": {
+          "scriptCode": "verify_script_filter",
+          "result_var": "orderData"
+        },
+
+        "inputParams": [
+          {
+            "paramCode": "dataCount",
+            "paramName": "生成条数",
+            "dataType": "NUMBER",
+            "paramSpace": "NODE",
+            "sourceType": "UPSTREAM_OUTPUT",
+            "sourceValue": {"nodeId": "s1", "paramCode": "dataCount"}
+          },
+          {
+            "paramCode": "minAmount",
+            "paramName": "最低单价",
+            "dataType": "NUMBER",
+            "paramSpace": "NODE",
+            "sourceType": "UPSTREAM_OUTPUT",
+            "sourceValue": {"nodeId": "s1", "paramCode": "minAmount"}
+          },
+          {
+            "paramCode": "maxAmount",
+            "paramName": "最高单价",
+            "dataType": "NUMBER",
+            "paramSpace": "NODE",
+            "sourceType": "UPSTREAM_OUTPUT",
+            "sourceValue": {"nodeId": "s1", "paramCode": "maxAmount"}
+          },
+          {
+            "paramCode": "categoryList",
+            "paramName": "商品类别",
+            "dataType": "STRING",
+            "paramSpace": "NODE",
+            "sourceType": "UPSTREAM_OUTPUT",
+            "sourceValue": {"nodeId": "s1", "paramCode": "categoryList"}
+          }
+        ],
+
+        "outputParams": [
+          {
+            "paramCode": "rows",
+            "paramName": "订单列表",
+            "dataType": "JSON",
+            "paramSpace": "NODE"
+          },
+          {
+            "paramCode": "rowCount",
+            "paramName": "订单总数",
+            "dataType": "NUMBER",
+            "paramSpace": "NODE"
+          },
+          {
+            "paramCode": "summary",
+            "paramName": "金额汇总",
+            "dataType": "JSON",
+            "paramSpace": "NODE"
+          }
+        ]
+      },
+
+      {
+        "id": "f1",
+        "type": "FILTER",
+        "name": "过滤高金额订单",
+        "componentCode": "COMP_FILTER",
+        "componentId": 6,
+        "position": {"x": 580, "y": 200},
+        "fieldValues": {
+          "filterMode": "EXPRESSION",
+          "expression": "totalAmount > 1000",
+          "sourceNodeId": "sc1",
+          "result_var": "highValueOrders"
+        },
+
+        "inputParams": [],
+        "outputParams": [
+          {
+            "paramCode": "rows",
+            "paramName": "高金额订单列表",
+            "dataType": "JSON",
+            "paramSpace": "NODE"
+          },
+          {
+            "paramCode": "rowCount",
+            "paramName": "高金额订单数量",
+            "dataType": "NUMBER",
+            "paramSpace": "NODE"
+          }
+        ]
+      },
+
+      {
+        "id": "e1",
+        "type": "END",
+        "name": "结束",
+        "componentCode": "COMP_END",
+        "componentId": 2,
+        "position": {"x": 800, "y": 200},
+        "fieldValues": {},
+        "inputParams": [],
+        "outputParams": []
+      }
+    ],
+
+    "edges": [
+      {"id": "e1", "source": {"nodeId": "s1"},  "target": {"nodeId": "sc1"}},
+      {"id": "e2", "source": {"nodeId": "sc1"}, "target": {"nodeId": "f1"}},
+      {"id": "e3", "source": {"nodeId": "f1"},  "target": {"nodeId": "e1"}}
+    ],
+
+    "viewport": {"scale": 1, "pan": {"x": 0, "y": 0}}
+  },
+
+  "ioParamLinkage": {
+    "说明": "以下展示 inputParams/outputParams 如何通过 UPSTREAM_OUTPUT 实现节点间参数联动",
+
+    "联动链路1_START_to_SCRIPT": {
+      "方向": "s1.outputParams → sc1.inputParams",
+      "机制": "sc1.inputParams 中 sourceType=UPSTREAM_OUTPUT, sourceValue.nodeId=s1, sourceValue.paramCode=上游输出参数名",
+      "详情": [
+        "s1.outputParams[dataCount].defaultValue='12'  ──→  sc1.inputParams[dataCount].sourceValue={nodeId:'s1', paramCode:'dataCount'}  ──→  ParamResolver 从 nodeOutputsMap['s1'] 取出 '12'",
+        "s1.outputParams[minAmount].defaultValue='50'  ──→  sc1.inputParams[minAmount]  ──→  解析得 '50'",
+        "s1.outputParams[maxAmount].defaultValue='3000'  ──→  sc1.inputParams[maxAmount]  ──→  解析得 '3000'",
+        "s1.outputParams[categoryList].defaultValue='食品,电子,服装,家居,运动'  ──→  sc1.inputParams[categoryList]  ──→  解析得字符串"
+      ],
+      "结果": "解析后的 resolvedInputs 序列化为 JSON 写入 Python stdin"
+    },
+
+    "联动链路2_SCRIPT_to_FILTER": {
+      "方向": "sc1.rawResult → f1.fieldValues.sourceNodeId",
+      "机制": "FILTER 通过 fieldValues.sourceNodeId='sc1' 定位上游节点, 从 nodeOutputsMap['sc1'] 取 rows 进行表达式过滤",
+      "详情": [
+        "sc1.outputParams 定义了 {rows, rowCount, summary} 三个输出",
+        "f1.fieldValues.sourceNodeId='sc1'  指向 sc1 节点",
+        "f1.fieldValues.expression='totalAmount > 1000'  对 rows 中每条记录执行 Aviator 表达式过滤",
+        "f1.outputParams 白名单 {rows, rowCount}  只暴露过滤后的高金额订单"
+      ],
+      "结果": "nodeOutputsMap['f1'] = {rows: [totalAmount>1000的订单], rowCount: N}"
+    },
+
+    "联动链路3_FILTER_to_END": {
+      "方向": "f1.outputParams → e1 (隐式汇总所有上游)",
+      "机制": "END 节点无显式 inputParams 时, 自动汇总所有上游 nodeOutputsMap 的内容",
+      "结果": "最终返回 {rows: [...高金额订单...], rowCount: N}"
+    }
+  },
+
+  "参数生命周期追踪": {
+    "s1_START": {
+      "节点执行": "StartEndPlugin 遍历 outputParams, 取 defaultValue",
+      "输出到上下文": "nodeOutputsMap['s1'] = {dataCount:'12', minAmount:'50', maxAmount:'3000', categoryList:'食品,电子,服装,家居,运动'}"
+    },
+    "sc1_SCRIPT": {
+      "参数解析": "ParamResolver 解析 4 个 UPSTREAM_OUTPUT → resolvedInputs",
+      "脚本输入(stdin)": "{\"dataCount\":\"12\",\"minAmount\":\"50\",\"maxAmount\":\"3000\",\"categoryList\":\"食品,电子,服装,家居,运动\"}",
+      "脚本输出(stdout)": "{\"rows\":[...12条订单按totalAmount降序...],\"rowCount\":12,\"summary\":{...}}",
+      "输出过滤": "outputParams 白名单 [rows, rowCount, summary] 从 rawResult 中提取对应字段",
+      "输出到上下文": "nodeOutputsMap['sc1'] = {rows: [...], rowCount: 12, summary: {...}}",
+      "存入全局变量": "resolvedVars['orderData'] = nodeOutputsMap['sc1']  (通过 result_var)"
+    },
+    "f1_FILTER": {
+      "数据源定位": "sourceNodeId='sc1' → 从 upstreamOutputs 取 nodeOutputsMap['sc1']",
+      "过滤执行": "AviatorEvaluator 对每条 row 执行 'totalAmount > 1000'",
+      "输出过滤": "outputParams 白名单 [rows, rowCount]",
+      "输出到上下文": "nodeOutputsMap['f1'] = {rows: [过滤后约5-7条], rowCount: N}",
+      "存入全局变量": "resolvedVars['highValueOrders'] = nodeOutputsMap['f1']"
+    },
+    "e1_END": {
+      "输入汇总": "inputParams 为空, ExecEngine 自动合并所有 upstreamOutputs",
+      "输出": "resolvedInputs = {rows: [...], rowCount: N} (来自 f1)"
+    }
+  },
+
+  "部署步骤": {
+    "step1": "在后台 脚本管理 中注册: scriptCode=verify_script_filter, scriptType=PYTHON, 内容=verify_script_filter.py",
+    "step2": "POST /task-dsl/version → 将 dsl 对象的 JSON 字符串作为 dslContent 传入",
+    "step3": "发布版本 → 设为当前 → POST /tasks/{taskId}/execute",
+    "step4": "GET /executor/log/detail/{execId} 查看 finalOutput",
+    "step5": "GET /executor/log/nodes/{execId} 确认每个节点的 status=SUCCESS"
+  }
+}

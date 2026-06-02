@@ -1,0 +1,234 @@
+html,
+body,
+#app {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #ececec;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+}
+
+.app-layout {
+  min-height: 100vh;
+}
+
+.sider {
+  background: #001529;
+  position: relative;
+}
+
+.logo {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+  padding: 12px 8px 10px;
+  margin: 8px 8px 10px;
+  border-radius: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  line-height: 1.2;
+  transition: all 0.2s ease;
+}
+
+.logo-collapsed {
+  font-size: 12px;
+  line-height: 1.15;
+  padding: 8px 2px 6px;
+  white-space: normal;
+  word-break: break-all;
+  overflow: visible;
+}
+
+.side-menu {
+  background: #001529;
+  border-inline-end: none !important;
+}
+
+.sider-footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 28px;
+  line-height: 28px;
+  text-align: center;
+  color: #9fb3c8;
+  background: #002140;
+}
+
+.top-header {
+  height: 42px;
+  line-height: 42px;
+  background: #fff !important;
+  color: #111;
+  border-bottom: 1px solid #f0f0f0;
+  padding: 0 10px;
+  font-size: 16px;
+}
+
+.menu-mark {
+  margin-right: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+}
+
+.menu-mark:hover {
+  background: #f2f3f5;
+}
+
+.px-mark {
+  float: right;
+  color: #666;
+  font-size: 12px;
+}
+
+.content {
+  padding: 12px;
+}
+
+.content-inner {
+  background: #fff;
+  min-height: calc(100vh - 66px);
+  border-radius: 2px;
+  padding: 14px;
+}
+
+.page-wrap {
+  border: 1px solid #f0f0f0;
+  border-radius: 2px;
+  padding: 14px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.toolbar-wrap {
+  flex-wrap: wrap;
+}
+
+.keyword-label {
+  color: #333;
+  font-size: 12px;
+}
+
+.toolbar .ant-input {
+  width: 180px;
+}
+
+.btn-reset {
+  background: #fff;
+}
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.stat-card {
+  border: 1px solid #f0f0f0;
+  border-radius: 4px;
+  padding: 16px;
+  min-height: 70px;
+}
+
+.stat-title {
+  color: #888;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-size: 34px;
+  line-height: 1;
+  color: #111;
+}
+
+.panel-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.panel {
+  border: 1px solid #f0f0f0;
+  border-radius: 4px;
+  min-height: 210px;
+}
+
+.panel > .title {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  font-weight: 600;
+}
+
+.panel > .body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 160px;
+}
+
+.op-link {
+  margin-right: 8px;
+  color: #222;
+}
+
+.op-tag-blue {
+  color: #1677ff;
+}
+
+.op-danger {
+  color: #ff4d4f;
+}
+
+.env-modal-fixed > .ant-modal {
+  width: min(1280px, 94vw) !important;
+  top: 42px;
+  padding-bottom: 42px;
+}
+
+.env-modal-fixed .ant-modal-content {
+  height: calc(100vh - 84px);
+  display: flex;
+  flex-direction: column;
+}
+
+.env-modal-fixed .ant-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* New Styles */
+.ant-form-item {
+  margin-bottom: 16px;
+}
+
+.modal-actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.toolbar .ant-input {
+  width: 240px;
+  margin-right: 12px;
+}
+
+.toolbar .btn-reset {
+  margin-left: 8px;
+  margin-right: 8px;
+}

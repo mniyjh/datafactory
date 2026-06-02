@@ -1,0 +1,35 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: datafactory-backend-configuration
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/datafactory?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  cloud:
+    nacos:
+      server-addr: 127.0.0.1:8848
+      discovery:
+        server-addr: 127.0.0.1:8848
+        ip: 127.0.0.1
+        prefer-ip-address: true
+      config:
+        enabled: true
+        import-check:
+          enabled: false
+
+executor:
+  base-url: http://127.0.0.1:8082
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+
+security:
+  datasource:
+    secret-key: ${DATASOURCE_ENCRYPT_KEY:RGF0YUZhY3RvcnlERU1PS2V5MjAyNiEhMTIzNDU2Nzg=}

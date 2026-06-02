@@ -1,0 +1,104 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: datafactory-backend-gateway
+  cloud:
+    nacos:
+      server-addr: 127.0.0.1:8848
+      discovery:
+        server-addr: 127.0.0.1:8848
+        ip: 127.0.0.1
+        prefer-ip-address: true
+    gateway:
+      routes:
+        - id: auth-service
+          uri: lb://datafactory-backend-configuration
+          predicates:
+            - Path=/auth/**
+        - id: user-service
+          uri: lb://datafactory-backend-configuration
+          predicates:
+            - Path=/users/**, /users
+        - id: config-item-service
+          uri: lb://datafactory-backend-configuration
+          predicates:
+            - Path=/config-items/**, /config-items
+        - id: datasource-db-service
+          uri: lb://datafactory-backend-configuration
+          predicates:
+            - Path=/datasource/db/**, /datasource/db
+        - id: datasource-db-version-service
+          uri: lb://datafactory-backend-configuration
+          predicates:
+            - Path=/datasource/db-version/**, /datasource/db-version
+        - id: external-api-service
+          uri: lb://datafactory-backend-configuration
+          predicates:
+            - Path=/external-api/**, /external-api
+        - id: external-api-version-service
+          uri: lb://datafactory-backend-configuration
+          predicates:
+            - Path=/external-api-version/**, /external-api-version
+        - id: open-api-service
+          uri: lb://datafactory-backend-configuration
+          predicates:
+            - Path=/open-api/**, /open-api
+        - id: script-service
+          uri: lb://datafactory-backend-configuration
+          predicates:
+            - Path=/script/**, /script
+        - id: dashboard-service
+          uri: lb://datafactory-backend-configuration
+          predicates:
+            - Path=/dashboard/**
+        - id: component-service
+          uri: lb://datafactory-backend-configuration
+          predicates:
+            - Path=/component/**, /component
+        - id: component-category-service
+          uri: lb://datafactory-backend-configuration
+          predicates:
+            - Path=/component-category/**, /component-category
+        - id: config-health-service
+          uri: lb://datafactory-backend-configuration
+          predicates:
+            - Path=/configuration/**
+        - id: task-service
+          uri: lb://datafactory-backend-executor-server
+          predicates:
+            - Path=/tasks/**, /tasks
+        - id: task-dsl-service
+          uri: lb://datafactory-backend-executor-server
+          predicates:
+            - Path=/task-dsl/**, /task-dsl
+        - id: task-test-config-service
+          uri: lb://datafactory-backend-executor-server
+          predicates:
+            - Path=/task-test-config/**, /task-test-config
+        - id: schedule-service
+          uri: lb://datafactory-backend-executor-server
+          predicates:
+            - Path=/schedule/**
+        - id: statistics-service
+          uri: lb://datafactory-backend-executor-server
+          predicates:
+            - Path=/statistics/**
+        - id: executor-health-service
+          uri: lb://datafactory-backend-executor-server
+          predicates:
+            - Path=/executor/**
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"

@@ -1,0 +1,251 @@
+package com.cqie.datafactory.executor.engine;
+
+import com.cqie.datafactory.common.exception.BusinessException;
+import com.cqie.datafactory.executor.engine.core.*;
+import com.cqie.datafactory.executor.engine.core.model.*;
+import com.cqie.datafactory.executor.engine.core.model.NodeDef.IoParamDef;
+import com.cqie.datafactory.executor.engine.plugin.PluginContext;
+import com.cqie.datafactory.executor.engine.plugin.PluginRegistry;
+import com.fasterxml.jackson.databind.JsonNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Component;
+
+import java.util.*;
+import java.util.function.Consumer;
+
+@Component
+public class ExecEngine {
+
+    private static final Logger log = LoggerFactory.getLogger(ExecEngine.class);
+    private final DslParser dslParser = new DslParser();
+    private final DslValidator dslValidator = new DslValidator();
+    private final TopoSort topoSort = new TopoSort();
+    private final ParamResolver paramResolver = new ParamResolver();
+    private static final Set<String> NON_RETRYABLE_TYPES = Set.of("START", "END", "BRANCH", "FILTER");
+    private static final Set<String> PLUGIN_TYPES = Set.of("DB", "API", "SCRIPT", "FILTER", "BRANCH", "COMMON_TASK", "START", "END");
+    private static final Set<String> CATEGORY_TYPES = Set.of("数据接入", "数据处理", "流程控制");
+
+    private final PluginRegistry pluginRegistry;
+    private final JdbcTemplate jdbcTemplate;
+
+    public ExecEngine(PluginRegistry pluginRegistry, JdbcTemplate jdbcTemplate) {
+        this.pluginRegistry = pluginRegistry;
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    public Map<String, Object> execute(String dslContent, String environment,
+                                        Map<String, Object> triggerParams,
+                                        Consumer<NodeExecutionRecord> nodeCallback) {
+        log.info("ExecEngine.execute triggerParams: {}", triggerParams);
+        DslModel dsl = dslParser.parse(dslContent);
+        dslValidator.validate(dsl);
+        List<NodeDef> sequence = topoSort.sort(dsl);
+
+        Map<String, Map<String, Object>> nodeOutputsMap = new HashMap<>();
+        Map<String, Object> resolvedVars = new HashMap<>();
+        Map<String, Object> finalOutput = new HashMap<>();
+        Map<String, Object> currentParams = triggerParams != null ? triggerParams : new HashMap<>();
+
+        for (NodeDef node : sequence) {
+            long startMs = System.currentTimeMillis();
+            NodeExecutionRecord record = new NodeExecutionRecord();
+            record.nodeId = node.getId();
+            record.nodeName = node.getDisplayName();
+            record.nodeType = node.getType();
+            record.componentCode = node.getComponentCode();
+            record.startTime = startMs;
+
+            int maxRetries = readRetryCount(node);
+
+            for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                Map<String, Object> resolvedInputs = new HashMap<>();
+                try {
+                    String pluginType = resolvePluginType(node);
+
+                    if ("START".equalsIgnoreCase(node.getType())) {
+                        resolvedInputs.putAll(currentParams);
+                    } else {
+                        for (IoParamDef def : node.getInputParams()) {
+                            String code = def.getParamCode();
+                            resolvedInputs.put(code, paramResolver.resolve(def, nodeOutputsMap));
+                        }
+                    }
+
+                    // END node with no explicit input: pass upstream outputs directly
+                    if ("END".equalsIgnoreCase(node.getType()) && node.getInputParams().isEmpty()) {
+                        for (Map<String, Object> upstream : nodeOutputsMap.values()) {
+                            resolvedInputs.putAll(upstream);
+                        }
+                    }
+
+                    PluginContext ctx = new PluginContext(node, environment, resolvedInputs, nodeOutputsMap, resolvedVars);
+                    Map<String, Object> rawResult = pluginRegistry.get(pluginType).execute(ctx);
+
+                    Map<String, Object> nodeOutputs = buildNodeOutputs(node, resolvedInputs, rawResult);
+                    nodeOutputsMap.put(node.getId(), nodeOutputs);
+
+                    String resultVar = readFieldValue(node.getFieldValues(), "result_var");
+                    if (!resultVar.isBlank()) {
+                        resolvedVars.put(resultVar, nodeOutputs);
+                    }
+                    if ("END".equalsIgnoreCase(node.getType())) {
+                        finalOutput = nodeOutputs;
+                    }
+
+                    record.status = "SUCCESS";
+                    record.outputs = rawResult;
+                    record.retryCount = attempt - 1;
+                    break;
+                } catch (Exception e) {
+                    record.retryCount = attempt;
+                    if (attempt >= maxRetries) {
+                        record.status = "FAILURE";
+                        record.errorMessage = e.getMessage();
+                        if (nodeCallback != null) {
+                            record.endTime = System.currentTimeMillis();
+                            record.durationMs = record.endTime - startMs;
+                            nodeCallback.accept(record);
+                        }
+                        throw new BusinessException("节点[" + node.getDisplayName() + "]执行失败(已重试" + (attempt - 1) + "次): " + e.getMessage());
+                    }
+                }
+            }
+
+            record.endTime = System.currentTimeMillis();
+            record.durationMs = record.endTime - startMs;
+            if (nodeCallback != null) {
+                nodeCallback.accept(record);
+            }
+        }
+
+        return finalOutput;
+    }
+
+    private Map<String, Object> buildNodeOutputs(NodeDef node, Map<String, Object> resolvedInputs,
+                                                  Map<String, Object> rawResult) {
+        Map<String, Object> outputs = new HashMap<>();
+        // ScriptPlugin 将数据嵌套在 result 字段下，先尝试扁平化到顶层
+        Map<String, Object> effectiveResult = rawResult;
+        if (rawResult.containsKey("result") && rawResult.get("result") instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> inner = (Map<String, Object>) rawResult.get("result");
+            effectiveResult = new HashMap<>(rawResult);
+            effectiveResult.putAll(inner);  // 将 result 内的 rows/rowCount 等提升到顶层
+        }
+        for (IoParamDef def : node.getOutputParams()) {
+            String code = def.getParamCode();
+            if (effectiveResult.containsKey(code)) {
+                outputs.put(code, effectiveResult.get(code));
+            } else if (resolvedInputs.containsKey(code)) {
+                outputs.put(code, resolvedInputs.get(code));
+            } else {
+                outputs.put(code, effectiveResult);
+            }
+        }
+        if (outputs.isEmpty()) {
+            outputs.putAll(effectiveResult);
+        }
+        return outputs;
+    }
+
+    /**
+     * 根据节点类型和字段值推导实际执行的插件类型。
+     * 如果 component_type 已经是插件直接支持的类型(DB/API/SCRIPT等)，直接返回；
+     * 如果是中文分类(数据接入/数据处理/流程控制)，根据字段分析推导具体插件。
+     */
+    private String resolvePluginType(NodeDef node) {
+        String type = node.getType() != null ? node.getType() : "";
+        String upperType = type.toUpperCase();
+
+        // START/END 是结构类型，共用 StartEndPlugin，END 也映射到 START
+        if ("START".equalsIgnoreCase(type)) return "START";
+        if ("END".equalsIgnoreCase(type)) return "START";
+
+        // 已经是插件直接支持的类型
+        if (pluginRegistry.has(upperType) || pluginRegistry.has(type)) {
+            return type;
+        }
+
+        // 从字段值中推导
+        JsonNode fv = node.getFieldValues();
+        Set<String> fieldCodes = new HashSet<>();
+        if (fv != null && !fv.isNull()) {
+            fv.fieldNames().forEachRemaining(fieldCodes::add);
+        }
+
+        // 如果字段为空，尝试从数据库查询组件定义字段
+        if (fieldCodes.isEmpty() && node.getComponentCode() != null && !node.getComponentCode().isBlank()
+                && jdbcTemplate != null) {
+            try {
+                List<Map<String, Object>> dbFields = jdbcTemplate.queryForList(
+                    "SELECT cf.field_code FROM component_field cf " +
+                    "JOIN component c ON c.id = cf.component_id " +
+                    "WHERE c.component_code = ?", node.getComponentCode());
+                dbFields.forEach(row -> fieldCodes.add(Objects.toString(row.get("field_code"), "")));
+            } catch (Exception ignore) {}
+        }
+
+        // 字段分析推导插件类型
+        if (fieldCodes.contains("sql")) return "DB";
+        if (fieldCodes.contains("url")) return "API";
+        if (fieldCodes.contains("scriptCode")) return "SCRIPT";
+        if (fieldCodes.contains("filterMode")) return "FILTER";
+        if (fieldCodes.contains("subTaskId")) return "COMMON_TASK";
+        if (fieldCodes.contains("expression")) return "BRANCH";
+
+        // 根据组件名称/编码推导 START/END（不区分大小写）
+        String name = node.getDisplayName() != null ? node.getDisplayName().toUpperCase() : "";
+        String code = node.getComponentCode() != null ? node.getComponentCode().toUpperCase() : "";
+        if (name.contains("START") || name.contains("开始") || code.contains("START")) return "START";
+        if (name.contains("END") || name.contains("结束") || code.contains("END")) return "START";
+
+        // 按分类兜底
+        return switch (type) {
+            case "数据接入" -> "DB";
+            case "数据处理" -> "SCRIPT";
+            case "流程控制" -> "START";
+            default -> throw new BusinessException("无法识别组件执行类型: " + type);
+        };
+    }
+
+    private int readRetryCount(NodeDef node) {
+        String pluginType = resolvePluginType(node).toUpperCase();
+        if (NON_RETRYABLE_TYPES.contains(pluginType)) {
+            return 1;
+        }
+        try {
+            if (node.getFieldValues() != null && !node.getFieldValues().isNull()) {
+                var retryNode = node.getFieldValues().get("retryCount");
+                if (retryNode != null && !retryNode.isNull()) {
+                    return Math.max(1, Integer.parseInt(retryNode.asText()));
+                }
+            }
+        } catch (Exception ignore) {}
+        return 1;
+    }
+
+    public static class NodeExecutionRecord {
+        public String nodeId;
+        public String nodeName;
+        public String nodeType;
+        public String componentCode;
+        public String status;
+        public long startTime;
+        public long endTime;
+        public long durationMs;
+        public int retryCount;
+        public Map<String, Object> outputs;
+        public String errorMessage;
+    }
+
+    private String readFieldValue(JsonNode fieldValues, String... keys) {
+        if (fieldValues == null || fieldValues.isNull()) return "";
+        for (String key : keys) {
+            JsonNode val = fieldValues.get(key);
+            if (val != null && !val.isNull() && !val.asText().isBlank()) return val.asText();
+        }
+        return "";
+    }
+}

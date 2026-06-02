@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 3,
+  "nodes": [
+    {
+      "id": "s1",
+      "type": "START",
+      "name": "开始",
+      "componentCode": "COMP_START",
+      "componentId": 1,
+      "position": {"x": 100, "y": 200},
+      "fieldValues": {},
+      "inputParams": [
+        {"paramCode": "a", "paramName": "加数a", "dataType": "NUMBER", "sourceType": "CONST", "sourceValue": "5"},
+        {"paramCode": "b", "paramName": "加数b", "dataType": "NUMBER", "sourceType": "CONST", "sourceValue": "3"}
+      ],
+      "outputParams": [
+        {"paramCode": "a", "paramName": "加数a", "dataType": "NUMBER", "defaultValue": "5"},
+        {"paramCode": "b", "paramName": "加数b", "dataType": "NUMBER", "defaultValue": "3"}
+      ]
+    },
+    {
+      "id": "sc1",
+      "type": "SCRIPT",
+      "name": "加法脚本",
+      "componentCode": "COMP_SCRIPT",
+      "componentId": 5,
+      "position": {"x": 340, "y": 200},
+      "fieldValues": {
+        "scriptCode": "simple_add"
+      },
+      "inputParams": [
+        {"paramCode": "a", "paramName": "加数a", "dataType": "NUMBER", "sourceType": "CONST", "sourceValue": "5"},
+        {"paramCode": "b", "paramName": "加数b", "dataType": "NUMBER", "sourceType": "CONST", "sourceValue": "3"}
+      ],
+      "outputParams": [
+        {"paramCode": "sum", "paramName": "和", "dataType": "NUMBER"},
+        {"paramCode": "rows", "paramName": "结果列表", "dataType": "JSON"},
+        {"paramCode": "rowCount", "paramName": "行数", "dataType": "NUMBER"}
+      ]
+    },
+    {
+      "id": "f1",
+      "type": "FILTER",
+      "name": "过滤结果",
+      "componentCode": "COMP_FILTER",
+      "componentId": 6,
+      "position": {"x": 580, "y": 200},
+      "fieldValues": {
+        "filterMode": "EXPRESSION",
+        "expression": "sum > 5",
+        "sourceNodeId": "sc1"
+      },
+      "inputParams": [],
+      "outputParams": []
+    },
+    {
+      "id": "e1",
+      "type": "END",
+      "name": "结束",
+      "componentCode": "COMP_END",
+      "componentId": 2,
+      "position": {"x": 780, "y": 200},
+      "fieldValues": {},
+      "inputParams": [],
+      "outputParams": []
+    }
+  ],
+  "edges": [
+    {"id": "e1", "source": {"nodeId": "s1"},  "target": {"nodeId": "sc1"}},
+    {"id": "e2", "source": {"nodeId": "sc1"}, "target": {"nodeId": "f1"}},
+    {"id": "e3", "source": {"nodeId": "f1"},  "target": {"nodeId": "e1"}}
+  ],
+  "viewport": {"scale": 1, "pan": {"x": 0, "y": 0}}
+}

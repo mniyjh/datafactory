@@ -1,0 +1,23 @@
+{
+  "name": "datafactory-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "frontend",
+    "datafactory-backend-common",
+    "datafactory-backend-configuration",
+    "datafactory-backend-executor/datafactory-backend-executor-server",
+    "datafactory-backend-gateway"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "dev:frontend": "npm run dev -w frontend",
+    "dev:backend": "npm run dev -w backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "dependencies": {
+    "playwright": "^1.60.0"
+  }
+}

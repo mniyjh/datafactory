@@ -1,0 +1,37 @@
+# === Nacos Server Runtime ===
+nacos/
+
+# === Maven Build ===
+**/target/
+
+# === Node.js ===
+**/node_modules/
+**/dist/
+
+# === Python ===
+**/__pycache__/
+*.pyc
+
+# === IDE ===
+.idea/
+*.iml
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === Archives ===
+*.zip
+*.tar.gz
+*.rar
+
+# === Claude Code ===
+.claude/
+
+# === Logs ===
+**/logs/
+*.log
+
+# === Environment ===
+.env
+.env.local
