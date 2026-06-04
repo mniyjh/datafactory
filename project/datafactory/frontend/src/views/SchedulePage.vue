@@ -177,50 +177,56 @@
             </div>
           </div>
 
-          <!-- 右侧：参数配置 -->
+          <!-- 右侧：流程画布 + 参数配置 -->
           <div class="layout-right">
             <div class="section-card" v-if="form.taskVersionId">
-              <div class="section-title">参数配置</div>
-              <a-spin :spinning="paramsLoading">
-                <template v-if="ioParamsList.length === 0 && !paramsLoading">
-                  <a-empty description="该版本暂无参数配置" />
-                </template>
-                <a-table
-                  v-else
-                  :columns="ioParamTableColumns"
-                  :data-source="ioParamsList"
-                  :pagination="false"
-                  size="small"
-                  bordered
-                  row-key="id"
-                  :scroll="{ x: 'max-content', y: 'calc(70vh - 100px)' }"
-                >
-                  <template #bodyCell="{ column, record }">
-                    <template v-if="column.dataIndex === 'ioType'">
-                      <a-tag :color="record.ioType === 'INPUT' ? 'processing' : 'success'">
-                        {{ record.ioType === 'INPUT' ? '输入参数' : '输出参数' }}
-                      </a-tag>
-                    </template>
-                    <template v-else-if="column.dataIndex === 'requiredFlag'">
-                      <a-tag :color="Number(record.requiredFlag || 0) === 1 ? 'error' : 'default'">
-                        {{ Number(record.requiredFlag || 0) === 1 ? '必填' : '可选' }}
-                      </a-tag>
-                    </template>
-                    <template v-else-if="column.dataIndex === 'sourceValue'">
-                      <span>{{ formatSourceDisplay(record.sourceValue) }}</span>
-                    </template>
-                    <template v-else-if="column.dataIndex === 'paramValue'">
-                      <a-input
-                        v-if="record.ioType === 'INPUT'"
-                        v-model:value="paramsConfig[record.id]"
-                        :placeholder="record.paramName || record.paramCode"
-                        size="small"
-                      />
-                      <span v-else>{{ syncedOutputValue(record) }}</span>
-                    </template>
+              <div class="section-title">流程可视化</div>
+              <div class="flow-viewer-mini" v-if="currentDslContent">
+                <FlowViewer :dsl-content="currentDslContent" @node-click="onFlowNodeClick" />
+              </div>
+              <a-empty v-else-if="!paramsLoading" description="暂无流程数据" style="margin: 20px 0;" />
+
+              <a-divider v-if="selectedFlowNode" style="margin: 12px 0;" />
+              <div v-if="selectedFlowNode" class="section-title" style="margin-top: 0;">
+                参数配置: {{ selectedFlowNode.name || selectedFlowNode.id }}
+              </div>
+              <a-table
+                v-if="selectedFlowNode && filteredIoParams.length > 0"
+                :columns="ioParamTableColumns"
+                :data-source="filteredIoParams"
+                :pagination="false"
+                size="small"
+                bordered
+                row-key="id"
+                :scroll="{ x: 'max-content', y: 300 }"
+              >
+                <template #bodyCell="{ column, record }">
+                  <template v-if="column.dataIndex === 'ioType'">
+                    <a-tag :color="record.ioType === 'INPUT' ? 'processing' : 'success'">
+                      {{ record.ioType === 'INPUT' ? '输入参数' : '输出参数' }}
+                    </a-tag>
                   </template>
-                </a-table>
-              </a-spin>
+                  <template v-else-if="column.dataIndex === 'requiredFlag'">
+                    <a-tag :color="Number(record.requiredFlag || 0) === 1 ? 'error' : 'default'">
+                      {{ Number(record.requiredFlag || 0) === 1 ? '必填' : '可选' }}
+                    </a-tag>
+                  </template>
+                  <template v-else-if="column.dataIndex === 'sourceValue'">
+                    <span>{{ formatSourceDisplay(record.sourceValue) }}</span>
+                  </template>
+                  <template v-else-if="column.dataIndex === 'paramValue'">
+                    <a-input
+                      v-if="record.ioType === 'INPUT'"
+                      v-model:value="paramsConfig[record.id]"
+                      :placeholder="record.paramName || record.paramCode"
+                      size="small"
+                    />
+                    <span v-else>{{ syncedOutputValue(record) }}</span>
+                  </template>
+                </template>
+              </a-table>
+              <a-empty v-else-if="selectedFlowNode" description="该节点暂无参数配置" />
+              <a-empty v-else-if="currentDslContent && !paramsLoading" description="点击画布中的节点查看参数" style="margin: 16px 0;" />
             </div>
             <div class="empty-placeholder" v-else>
               <a-empty description="请先选择任务版本以配置参数" />
@@ -259,6 +265,7 @@ import { message } from 'ant-design-vue';
 import { scheduleApi } from '../api/scheduleApi';
 import { taskApi } from '../api/task';
 import { componentApi } from '../api/componentApi';
+import FlowViewer from '../components/FlowViewer.vue';
 
 const router = useRouter();
 
@@ -291,8 +298,15 @@ const statsError = ref('');
 
 // 参数配置
 const ioParamsList = ref([]);
+const currentDslContent = ref(null);
 const paramsLoading = ref(false);
 const paramsConfig = ref({});
+
+const selectedFlowNode = ref(null);
+const filteredIoParams = computed(() => {
+  if (!selectedFlowNode.value) return [];
+  return ioParamsList.value.filter(p => p.nodeId === selectedFlowNode.value.id);
+});
 
 const cronPresets = [
   { label: '每1分钟', value: '0 * * * * ?' },
@@ -339,14 +353,13 @@ const columns = [
 ];
 
 const ioParamTableColumns = [
-  { title: '组件ID', dataIndex: 'nodeId', width: 120 },
-  { title: '组件名称', dataIndex: 'nodeName', width: 100 },
-  { title: '参数分类', dataIndex: 'ioType', width: 80 },
-  { title: '参数编码', dataIndex: 'paramCode', width: 140 },
-  { title: '参数名称', dataIndex: 'paramName', width: 120 },
-  { title: '数据类型', dataIndex: 'dataType', width: 80 },
-  { title: '来源值', dataIndex: 'sourceValue', width: 120 },
-  { title: '参数值', dataIndex: 'paramValue', width: 180 }
+  { title: '分类', dataIndex: 'ioType', width: 80 },
+  { title: '参数编码', dataIndex: 'paramCode', width: 120 },
+  { title: '参数名称', dataIndex: 'paramName', width: 100 },
+  { title: '数据类型', dataIndex: 'dataType', width: 70 },
+  { title: '必填', dataIndex: 'requiredFlag', width: 60 },
+  { title: '来源值', dataIndex: 'sourceValue', width: 100 },
+  { title: '参数值', dataIndex: 'paramValue', width: 160 }
 ];
 
 // 展开行显示详细信息
@@ -405,6 +418,8 @@ const onTaskChange = (taskId) => {
   versionList.value = [];
   ioParamsList.value = [];
   paramsConfig.value = {};
+  currentDslContent.value = null;
+  selectedFlowNode.value = null;
   if (form.value.environment) loadVersionList();
 };
 
@@ -413,6 +428,8 @@ const onEnvironmentChange = () => {
   versionList.value = [];
   ioParamsList.value = [];
   paramsConfig.value = {};
+  currentDslContent.value = null;
+  selectedFlowNode.value = null;
   if (form.value.taskId) loadVersionList();
 };
 
@@ -465,6 +482,7 @@ const loadIoParams = async () => {
     const dsl = typeof selectedVersion.dslContent === 'string'
       ? JSON.parse(selectedVersion.dslContent)
       : selectedVersion.dslContent;
+    currentDslContent.value = dsl;
     const nodes = dsl.nodes || [];
 
     // Fetch component metadata for richer param info
@@ -565,6 +583,10 @@ const loadIoParams = async () => {
   }
 };
 
+const onFlowNodeClick = (node) => {
+  selectedFlowNode.value = node;
+};
+
 const formatSourceDisplay = (val) => {
   if (val === undefined || val === null || val === '') return '-';
   if (typeof val === 'object') return JSON.stringify(val);
@@ -591,6 +613,8 @@ const showCreateModal = () => {
   versionList.value = [];
   ioParamsList.value = [];
   paramsConfig.value = {};
+  currentDslContent.value = null;
+  selectedFlowNode.value = null;
   loadTaskList();
   modalVisible.value = true;
 };
@@ -768,5 +792,9 @@ onMounted(fetchJobs);
   border: 1px dashed #d9d9d9;
   border-radius: 4px;
   min-height: 200px;
+}
+.flow-viewer-mini {
+  height: 280px;
+  margin-bottom: 4px;
 }
 </style>
