@@ -35,7 +35,7 @@
     </a-table>
 
     <a-modal v-model:open="formVisible" :title="isEdit ? '编辑数据库' : '新建数据库'" :width="760" :footer="null" destroyOnClose>
-      <a-form :model="formState" :label-col="{ style: { width: '130px' } }" class="db-form">
+      <a-form ref="formRef" :model="formState" :rules="formRules" :label-col="{ style: { width: '130px' } }" class="db-form">
         <a-form-item label="数据库编码" required>
           <a-input v-model:value="formState.code" :disabled="isEdit" placeholder="例如：DB_MYSQL_001" />
         </a-form-item>
@@ -153,6 +153,12 @@ import { databaseApi } from '../api/databaseApi';
 const keyword = ref('');
 const loading = ref(false);
 const formVisible = ref(false);
+const formRef = ref();
+const formRules = {
+  code: [{ required: true, message: '请输入数据库编码', trigger: 'blur' }],
+  name: [{ required: true, message: '请输入数据库名称', trigger: 'blur' }],
+  type: [{ required: true, message: '请选择数据库类型', trigger: 'change' }]
+};
 const detailVisible = ref(false);
 const envVisible = ref(false);
 const activeEnvTab = ref('dev');
@@ -449,6 +455,11 @@ const selectCurrent = async (record) => {
 };
 
 const submitForm = async () => {
+  try {
+    await formRef.value.validate();
+  } catch (e) {
+    return;
+  }
   try {
     if (isEdit.value) {
       await databaseApi.updateDb(editingId.value, formState);
