@@ -592,6 +592,9 @@ const sourceTypeLabel = (t) => sourceTypeLabels[t] || t || '-';
 
 const formatSourceDisplay = (val) => {
   if (val === undefined || val === null || val === '') return '-';
+  if (typeof val === 'object' && val.nodeId && val.paramCode) {
+    return `${val.nodeId}.${val.paramCode}`;
+  }
   if (typeof val === 'object') return JSON.stringify(val);
   return String(val);
 };
