@@ -405,18 +405,20 @@ const sourceTypeLabel = (t) => sourceTypeLabels[t] || t || '-';
 
 const formatDisplayValue = (val) => {
   if (val === undefined || val === null || val === '') return '-';
-  if (typeof val === 'object' && val.nodeId && val.paramCode) {
-    return `${val.nodeId}.${val.paramCode}`;
-  }
-  if (typeof val === 'object') return JSON.stringify(val);
+  // 尝试解析 JSON 字符串（如上游输出引用被序列化为字符串的情况）
   if (typeof val === 'string') {
     try {
       const parsed = JSON.parse(val);
       if (parsed && typeof parsed === 'object' && parsed.nodeId && parsed.paramCode) {
         return `${parsed.nodeId}.${parsed.paramCode}`;
       }
-    } catch (_) { /* fall through */ }
+    } catch (_) {}
+    return val;
   }
+  if (typeof val === 'object' && val.nodeId && val.paramCode) {
+    return `${val.nodeId}.${val.paramCode}`;
+  }
+  if (typeof val === 'object') return JSON.stringify(val);
   return String(val);
 };
 
