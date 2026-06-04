@@ -379,7 +379,7 @@ const loadDefaultParams = async () => {
           description: param.description || '',
           dataType: param.dataType || param.type || 'STRING',
           sourceType: param.sourceType || 'CONST',
-          sourceValue: param.sourceValue ?? param.defaultValue ?? '',
+          sourceValue: ensureString(param.sourceValue) ?? ensureString(param.defaultValue) ?? '',
           requiredFlag: Number(param.requiredFlag || 0),
           nodeId: node.id,
           nodeName: node.name,
@@ -402,6 +402,17 @@ const onFlowNodeClick = (node) => {
 
 const sourceTypeLabels = { CONST: '常量', UPSTREAM_OUTPUT: '上游输出', EXPRESSION: '表达式' };
 const sourceTypeLabel = (t) => sourceTypeLabels[t] || t || '-';
+
+// 确保值为字符串（对象JSON化或null返回）
+const ensureString = (val) => {
+  if (val === undefined || val === null) return null;
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object') {
+    if (val.nodeId && val.paramCode) return val;
+    return JSON.stringify(val);
+  }
+  return String(val);
+};
 
 const formatDisplayValue = (val) => {
   if (val === undefined || val === null || val === '') return '-';
