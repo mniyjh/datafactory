@@ -348,8 +348,8 @@ const loadDefaultParams = async () => {
           dataType: item.dataType,
           requiredFlag: item.requiredFlag || 0,
           sourceType: item.sourceType || 'CONST',
-          sourceValue: typeof item.sourceValue === 'string' ? item.sourceValue : '',
-          defaultValue: typeof item.sourceValue === 'string' ? item.sourceValue : '',
+          sourceValue: item.sourceValue ?? '',
+          defaultValue: typeof item.sourceValue === 'string' ? item.sourceValue : (item.sourceValue ? '' : ''),
         }));
       }
 
