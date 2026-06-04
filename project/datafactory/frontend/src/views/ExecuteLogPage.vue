@@ -58,8 +58,9 @@
     </a-table>
 
     <!-- 执行详情弹窗 -->
-    <a-modal v-model:open="detailVisible" title="执行详情" :width="1200" :footer="null">
-      <div style="overflow: hidden;">
+    <a-modal v-model:open="detailVisible" title="执行详情" :width="900" :footer="null"
+      :body-style="{ maxHeight: '70vh', overflowY: 'auto', padding: '16px 24px' }">
+      <div>
       <a-descriptions bordered :column="2" size="small">
         <a-descriptions-item label="执行ID" :span="2">{{ currentLog.executionId }}</a-descriptions-item>
         <a-descriptions-item label="任务ID">{{ currentLog.taskId }}</a-descriptions-item>
@@ -108,8 +109,9 @@
     </a-modal>
 
     <!-- 组件日志可视化弹窗 -->
-    <a-modal v-model:open="nodeLogVisible" title="组件执行日志" :width="1100" :footer="null">
-      <div style="overflow: hidden;">
+    <a-modal v-model:open="nodeLogVisible" title="组件执行日志" :width="1000" :footer="null"
+      :body-style="{ maxHeight: '70vh', overflowY: 'auto', padding: '16px 24px' }">
+      <div>
       <div class="node-log-layout">
         <!-- 左侧流程示意 -->
         <div class="node-flow-side">
