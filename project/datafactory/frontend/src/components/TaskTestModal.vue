@@ -60,7 +60,7 @@
                   </a-tag>
                 </template>
                 <template v-else-if="column.dataIndex === 'sourceType'">
-                  <a-tag>{{ record.sourceType || '-' }}</a-tag>
+                  <span>{{ sourceTypeLabel(record.sourceType) }}</span>
                 </template>
                 <template v-else-if="column.dataIndex === 'sourceValue'">
                   <a-input
@@ -399,6 +399,9 @@ const loadDefaultParams = async () => {
 const onFlowNodeClick = (node) => {
   selectedFlowNode.value = node;
 };
+
+const sourceTypeLabels = { CONST: '常量', UPSTREAM_OUTPUT: '上游输出', EXPRESSION: '表达式' };
+const sourceTypeLabel = (t) => sourceTypeLabels[t] || t || '-';
 
 const formatDisplayValue = (val) => {
   if (val === undefined || val === null || val === '') return '-';
