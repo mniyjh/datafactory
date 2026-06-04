@@ -63,7 +63,12 @@
                   <a-tag>{{ record.sourceType || '-' }}</a-tag>
                 </template>
                 <template v-else-if="column.dataIndex === 'sourceValue'">
-                  <a-input v-if="record.ioType === 'INPUT'" v-model:value="record.testValue" placeholder="-" size="small" />
+                  <a-input
+                    v-if="record.ioType === 'INPUT'"
+                    v-model:value="record.testValue"
+                    :placeholder="formatDisplayValue(record.sourceValue)"
+                    size="small"
+                  />
                   <span v-else>{{ syncedOrSourceValue(record) }}</span>
                 </template>
               </template>
