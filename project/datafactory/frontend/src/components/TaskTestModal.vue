@@ -416,18 +416,12 @@ const ensureString = (val) => {
 
 const formatDisplayValue = (val) => {
   if (val === undefined || val === null || val === '') return '-';
-  // 尝试解析 JSON 字符串（如上游输出引用被序列化为字符串的情况）
   if (typeof val === 'string') {
     try {
       const parsed = JSON.parse(val);
-      if (parsed && typeof parsed === 'object' && parsed.nodeId && parsed.paramCode) {
-        return `${parsed.nodeId}.${parsed.paramCode}`;
-      }
+      if (parsed && typeof parsed === 'object') return JSON.stringify(parsed);
     } catch (_) {}
     return val;
-  }
-  if (typeof val === 'object' && val.nodeId && val.paramCode) {
-    return `${val.nodeId}.${val.paramCode}`;
   }
   if (typeof val === 'object') return JSON.stringify(val);
   return String(val);
