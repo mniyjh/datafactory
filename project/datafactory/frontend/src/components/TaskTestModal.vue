@@ -385,7 +385,7 @@ const loadDefaultParams = async () => {
           nodeName: node.name,
           nodeType: node.type || '',
           componentCode: node.componentCode || '',
-          testValue: normalizeSourceValue(param.sourceValue ?? param.defaultValue ?? '')
+          testValue: ''
         });
       });
     });
@@ -402,16 +402,6 @@ const onFlowNodeClick = (node) => {
 
 const sourceTypeLabels = { CONST: '常量', UPSTREAM_OUTPUT: '上游输出', EXPRESSION: '表达式' };
 const sourceTypeLabel = (t) => sourceTypeLabels[t] || t || '-';
-
-// 格式化上游输出引用为可读字符串
-const normalizeSourceValue = (val) => {
-  if (val === undefined || val === null || val === '') return '';
-  if (typeof val === 'object' && val.nodeId && val.paramCode) {
-    return `${val.nodeId}.${val.paramCode}`;
-  }
-  if (typeof val === 'object') return JSON.stringify(val);
-  return String(val);
-};
 
 const formatDisplayValue = (val) => {
   if (val === undefined || val === null || val === '') return '-';
