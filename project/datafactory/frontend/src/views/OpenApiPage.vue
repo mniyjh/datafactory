@@ -40,12 +40,12 @@
             <a-form ref="formRef" :model="formState" :rules="formRules" layout="vertical">
               <a-row :gutter="16">
                 <a-col :span="12">
-                  <a-form-item label="接口编码" required>
+                  <a-form-item label="接口编码" required name="code">
                     <a-input v-model:value="formState.code" :disabled="isEdit" placeholder="例如：OPEN_API_USER_001" />
                   </a-form-item>
                 </a-col>
                 <a-col :span="12">
-                  <a-form-item label="接口名称" required>
+                  <a-form-item label="接口名称" required name="name">
                     <a-input v-model:value="formState.name" placeholder="例如：用户查询接口" />
                   </a-form-item>
                 </a-col>
@@ -53,7 +53,7 @@
 
               <a-row :gutter="16">
                 <a-col :span="16">
-                  <a-form-item label="接口路径" required>
+                  <a-form-item label="接口路径" required name="path">
                     <a-input v-model:value="formState.path" placeholder="例如：/api/user/query" />
                   </a-form-item>
                 </a-col>

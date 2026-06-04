@@ -39,15 +39,15 @@
 
     <a-modal v-model:open="formVisible" :title="isEdit ? '编辑API' : '新建API'" :width="760" :footer="null" destroyOnClose>
       <a-form ref="formRef" :model="formState" :rules="formRules" :label-col="{ style: { width: '130px' } }" class="api-form">
-        <a-form-item label="API编码" required>
+        <a-form-item label="API编码" required name="code">
           <a-input v-model:value="formState.code" :disabled="isEdit" placeholder="例如：API_WEATHER_001" />
         </a-form-item>
 
-        <a-form-item label="API名称" required>
+        <a-form-item label="API名称" required name="name">
           <a-input v-model:value="formState.name" placeholder="例如：天气查询API" />
         </a-form-item>
 
-        <a-form-item label="API类型" required>
+        <a-form-item label="API类型" required name="type">
           <a-select v-model:value="formState.type" :options="apiTypeOptions" placeholder="请选择API类型" />
         </a-form-item>
 

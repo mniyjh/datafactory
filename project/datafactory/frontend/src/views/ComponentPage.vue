@@ -31,13 +31,13 @@
 
     <a-modal v-model:open="formVisible" :title="isEdit ? '编辑组件' : '新建组件'" :width="720" :footer="null" destroyOnClose>
       <a-form ref="formRef" :model="formState" :rules="formRules" :label-col="{ style: { width: '120px' } }">
-        <a-form-item label="组件编码" required>
+        <a-form-item label="组件编码" required name="componentCode">
           <a-input v-model:value="formState.componentCode" :disabled="isEdit" placeholder="请输入组件编码" />
         </a-form-item>
-        <a-form-item label="组件名称" required>
+        <a-form-item label="组件名称" required name="componentName">
           <a-input v-model:value="formState.componentName" placeholder="请输入组件名称" />
         </a-form-item>
-        <a-form-item label="组件分类" required>
+        <a-form-item label="组件分类" required name="componentType">
           <a-select v-model:value="formState.componentType" placeholder="请选择组件分类">
             <a-select-option value="数据接入">数据接入</a-select-option>
             <a-select-option value="数据处理">数据处理</a-select-option>

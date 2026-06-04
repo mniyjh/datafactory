@@ -33,15 +33,15 @@
 
     <a-modal v-model:open="formVisible" :title="isEdit ? '编辑脚本' : '新建脚本'" :width="760" :footer="null" destroyOnClose>
       <a-form ref="formRef" :model="formState" :rules="formRules" :label-col="{ style: { width: '130px' } }" class="script-form">
-        <a-form-item label="脚本编码" required>
+        <a-form-item label="脚本编码" required name="code">
           <a-input v-model:value="formState.code" :disabled="isEdit" placeholder="例如：SCRIPT_PYTHON_001" />
         </a-form-item>
 
-        <a-form-item label="脚本名称" required>
+        <a-form-item label="脚本名称" required name="name">
           <a-input v-model:value="formState.name" placeholder="例如：数据清洗脚本" />
         </a-form-item>
 
-        <a-form-item label="脚本类型" required>
+        <a-form-item label="脚本类型" required name="type">
           <a-select v-model:value="formState.type" :options="scriptTypeOptions" placeholder="请选择脚本类型" />
         </a-form-item>
 

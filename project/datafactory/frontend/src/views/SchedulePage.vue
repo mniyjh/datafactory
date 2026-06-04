@@ -59,12 +59,12 @@
 
               <a-row :gutter="16">
                 <a-col :span="8">
-                  <a-form-item label="定时任务编码" required>
+                  <a-form-item label="定时任务编码" required name="jobCode">
                     <a-input v-model:value="form.jobCode" placeholder="唯一编码" :disabled="!!editingId" />
                   </a-form-item>
                 </a-col>
                 <a-col :span="8">
-                  <a-form-item label="环境" required>
+                  <a-form-item label="环境" required name="environment">
                     <a-select v-model:value="form.environment" @change="onEnvironmentChange">
                       <a-select-option value="TEST">TEST（测试环境）</a-select-option>
                       <a-select-option value="PROD">PROD（生产环境）</a-select-option>
@@ -72,7 +72,7 @@
                   </a-form-item>
                 </a-col>
                 <a-col :span="8">
-                  <a-form-item label="选择任务" required>
+                  <a-form-item label="选择任务" required name="taskId">
                     <a-select v-model:value="form.taskId" placeholder="请选择任务" show-search
                       :filter-option="filterTaskOption" @change="onTaskChange" :loading="taskLoading">
                       <a-select-option v-for="t in taskList" :key="t.id" :value="t.id">
@@ -83,7 +83,7 @@
                 </a-col>
               </a-row>
 
-              <a-form-item label="选择版本" required>
+              <a-form-item label="选择版本" required name="taskVersionId">
                 <a-select v-model:value="form.taskVersionId" placeholder="请先选择任务和环境" :loading="versionLoading"
                   :disabled="!form.taskId || !form.environment" @change="loadIoParams">
                   <a-select-option v-for="v in versionList" :key="v.id" :value="v.id">
@@ -92,7 +92,7 @@
                 </a-select>
               </a-form-item>
 
-              <a-form-item label="Cron 表达式" required>
+              <a-form-item label="Cron 表达式" required name="cronExpression">
                 <a-input v-model:value="form.cronExpression" placeholder="0 0 2 * * ?">
                   <template #suffix>
                     <a-tooltip title="秒 分 时 日 月 周(6段)">

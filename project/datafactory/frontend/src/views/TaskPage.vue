@@ -44,10 +44,10 @@
 
     <a-modal v-model:open="formVisible" :title="isEdit ? '编辑任务' : '新建任务'" :width="760" :footer="null" destroyOnClose>
       <a-form ref="formRef" :model="formState" :rules="formRules" :label-col="{ style: { width: '130px' } }" class="task-form">
-        <a-form-item label="任务编码" required>
+        <a-form-item label="任务编码" required name="taskCode">
           <a-input v-model:value="formState.taskCode" :disabled="isEdit" placeholder="请输入任务编码" />
         </a-form-item>
-        <a-form-item label="任务名称" required>
+        <a-form-item label="任务名称" required name="taskName">
           <a-input v-model:value="formState.taskName" placeholder="请输入任务名称" />
         </a-form-item>
         <a-form-item label="版本">

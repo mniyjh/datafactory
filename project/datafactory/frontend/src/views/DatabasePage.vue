@@ -36,15 +36,15 @@
 
     <a-modal v-model:open="formVisible" :title="isEdit ? '编辑数据库' : '新建数据库'" :width="760" :footer="null" destroyOnClose>
       <a-form ref="formRef" :model="formState" :rules="formRules" :label-col="{ style: { width: '130px' } }" class="db-form">
-        <a-form-item label="数据库编码" required>
+        <a-form-item label="数据库编码" required name="code">
           <a-input v-model:value="formState.code" :disabled="isEdit" placeholder="例如：DB_MYSQL_001" />
         </a-form-item>
 
-        <a-form-item label="数据库名称" required>
+        <a-form-item label="数据库名称" required name="name">
           <a-input v-model:value="formState.name" placeholder="例如：MySQL生产库" />
         </a-form-item>
 
-        <a-form-item label="数据库类型" required>
+        <a-form-item label="数据库类型" required name="type">
           <a-select v-model:value="formState.type" :options="dbTypeOptions" placeholder="请选择数据库类型" />
         </a-form-item>
 
