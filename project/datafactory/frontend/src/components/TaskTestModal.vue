@@ -46,7 +46,7 @@
               size="small"
               bordered
               row-key="id"
-              :scroll="{ y: 240 }"
+              :scroll="{ x: 'max-content', y: 240 }"
             >
               <template #bodyCell="{ column, record }">
                 <template v-if="column.dataIndex === 'ioType'">
@@ -73,7 +73,7 @@
                 </template>
               </template>
             </a-table>
-            <a-empty v-else-if="selectedFlowNode" description="该节点暂无参数" />
+            <a-empty v-else-if="selectedFlowNode" description="该节点暂无参数配置" />
           </div>
         </div>
 
