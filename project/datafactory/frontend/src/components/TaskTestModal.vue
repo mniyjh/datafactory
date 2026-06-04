@@ -166,7 +166,7 @@ const ioColumns = [
   { title: '参数名称', dataIndex: 'paramName', width: 140 },
   { title: '数据类型', dataIndex: 'dataType', width: 90 },
   { title: '参数来源', dataIndex: 'sourceType', width: 100 },
-  { title: '来源值/测试值', dataIndex: 'sourceValue', width: 240 },
+  { title: '来源值', dataIndex: 'sourceValue', width: 240 },
   { title: '必填', dataIndex: 'requiredFlag', width: 70 }
 ];
 
