@@ -30,7 +30,7 @@
     </a-table>
 
     <a-modal v-model:open="formVisible" :title="isEdit ? '编辑组件' : '新建组件'" :width="720" :footer="null" destroyOnClose>
-      <a-form :model="formState" :label-col="{ style: { width: '120px' } }">
+      <a-form ref="formRef" :model="formState" :rules="formRules" :label-col="{ style: { width: '120px' } }">
         <a-form-item label="组件编码" required>
           <a-input v-model:value="formState.componentCode" :disabled="isEdit" placeholder="请输入组件编码" />
         </a-form-item>
@@ -130,6 +130,12 @@ const keyword = ref('');
 const loading = ref(false);
 const rows = ref([]);
 const formVisible = ref(false);
+const formRef = ref();
+const formRules = {
+  componentCode: [{ required: true, message: '请输入组件编码', trigger: 'blur' }],
+  componentName: [{ required: true, message: '请输入组件名称', trigger: 'blur' }],
+  componentType: [{ required: true, message: '请选择组件分类', trigger: 'change' }]
+};
 const isEdit = ref(false);
 const editingId = ref(null);
 const formState = reactive({
@@ -306,8 +312,9 @@ const openEdit = (row) => {
 };
 
 const submitForm = async () => {
-  if (!formState.componentCode || !formState.componentName || !formState.componentType) {
-    message.warning('请填写组件编码、组件名称并选择组件分类');
+  try {
+    await formRef.value.validate();
+  } catch (e) {
     return;
   }
   const payload = {
