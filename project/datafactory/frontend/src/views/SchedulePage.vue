@@ -221,7 +221,7 @@
                       :placeholder="formatSourceDisplay(record.sourceValue)"
                       size="small"
                     />
-                    <span v-else>{{ formatSourceDisplay(record.sourceValue) }}</span>
+                    <span v-else class="source-value-text">{{ formatSourceDisplay(record.sourceValue) }}</span>
                   </template>
                 </template>
               </a-table>
@@ -786,6 +786,9 @@ onMounted(fetchJobs);
   border: 1px dashed #d9d9d9;
   border-radius: 4px;
   min-height: 200px;
+}
+.source-value-text {
+  color: #999;
 }
 .flow-viewer-mini {
   height: 280px;

@@ -69,7 +69,7 @@
                     :placeholder="formatDisplayValue(record.sourceValue)"
                     size="small"
                   />
-                  <span v-else>{{ formatDisplayValue(record.sourceValue) }}</span>
+                  <span v-else class="source-value-text">{{ formatDisplayValue(record.sourceValue) }}</span>
                 </template>
               </template>
             </a-table>
@@ -776,5 +776,8 @@ const handleExecute = async () => {
 
 .delete-icon:hover {
   color: #ff7875;
+}
+.source-value-text {
+  color: #999;
 }
 </style>
