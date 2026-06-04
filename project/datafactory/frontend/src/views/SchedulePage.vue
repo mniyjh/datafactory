@@ -221,7 +221,7 @@
                       :placeholder="formatSourceDisplay(record.sourceValue)"
                       size="small"
                     />
-                    <span v-else class="source-value-text">{{ formatSourceDisplay(record.sourceValue) }}</span>
+                    <span v-else class="source-value-text">{{ getOutputDisplayValue(record) }}</span>
                   </template>
                 </template>
               </a-table>
@@ -599,6 +599,20 @@ const ensureString = (val) => {
     return JSON.stringify(val);
   }
   return String(val);
+};
+
+// START/END 节点输出参数值联动对应输入参数的编辑值
+const getOutputDisplayValue = (record) => {
+  if (record.ioType !== 'OUTPUT') return formatSourceDisplay(record.sourceValue);
+  if (isStartOrEndByNode({ type: record.nodeType, componentCode: record.componentCode })) {
+    const inputMatch = ioParamsList.value.find(
+      p => p.ioType === 'INPUT' && p.nodeId === record.nodeId && p.paramCode === record.paramCode
+    );
+    if (inputMatch && paramsConfig.value[inputMatch.id]) {
+      return paramsConfig.value[inputMatch.id];
+    }
+  }
+  return formatSourceDisplay(record.sourceValue);
 };
 
 const formatSourceDisplay = (val) => {
