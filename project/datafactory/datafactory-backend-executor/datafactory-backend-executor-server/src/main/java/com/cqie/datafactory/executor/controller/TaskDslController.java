@@ -9,16 +9,31 @@ import com.cqie.datafactory.executor.service.vo.TaskDslVO;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.cqie.datafactory.executor.entity.NodeInstance;
+import com.cqie.datafactory.executor.entity.NodeIoParamValue;
+import com.cqie.datafactory.executor.mapper.NodeInstanceMapper;
+import com.cqie.datafactory.executor.mapper.NodeIoParamValueMapper;
+
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/task-dsl")
 public class TaskDslController {
 
     private final TaskDslService taskDslService;
+    private final NodeInstanceMapper nodeInstanceMapper;
+    private final NodeIoParamValueMapper nodeIoParamValueMapper;
 
-    public TaskDslController(TaskDslService taskDslService) {
+    public TaskDslController(TaskDslService taskDslService,
+                              NodeInstanceMapper nodeInstanceMapper,
+                              NodeIoParamValueMapper nodeIoParamValueMapper) {
         this.taskDslService = taskDslService;
+        this.nodeInstanceMapper = nodeInstanceMapper;
+        this.nodeIoParamValueMapper = nodeIoParamValueMapper;
     }
 
     @PostMapping("/version")
@@ -89,5 +104,52 @@ public class TaskDslController {
     public Result<Void> syncNodes(@PathVariable("taskDslId") Long taskDslId) {
         taskDslService.setCurrent(taskDslId);
         return Result.success();
+    }
+
+    @GetMapping("/{taskDslId}/all-io-params")
+    public Result<List<Map<String, Object>>> allIoParams(@PathVariable("taskDslId") Long taskDslId) {
+        // 1. 查该版本下所有节点实例
+        List<NodeInstance> instances = nodeInstanceMapper.selectList(
+                new LambdaQueryWrapper<NodeInstance>()
+                        .eq(NodeInstance::getTaskDslId, taskDslId));
+
+        // 2. 构建 nodeInstanceId -> NodeInstance 映射
+        Map<Long, NodeInstance> instanceMap = new HashMap<>();
+        for (NodeInstance inst : instances) {
+            instanceMap.put(inst.getId(), inst);
+        }
+
+        // 3. 收集所有 nodeInstanceId
+        List<Long> instanceIds = new ArrayList<>(instanceMap.keySet());
+        if (instanceIds.isEmpty()) {
+            return Result.success(List.of());
+        }
+
+        // 4. 批量查询所有 IO 参数
+        List<NodeIoParamValue> allParams = nodeIoParamValueMapper.selectList(
+                new LambdaQueryWrapper<NodeIoParamValue>()
+                        .in(NodeIoParamValue::getNodeInstanceId, instanceIds)
+                        .orderByAsc(NodeIoParamValue::getSortOrder, NodeIoParamValue::getId));
+
+        // 5. 组装返回数据，附加 nodeId 和 nodeName
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (NodeIoParamValue param : allParams) {
+            NodeInstance inst = instanceMap.get(param.getNodeInstanceId());
+            if (inst == null) continue;
+
+            Map<String, Object> item = new HashMap<>();
+            item.put("nodeId", inst.getNodeId());
+            item.put("nodeName", inst.getNodeName());
+            item.put("ioType", param.getIoType());
+            item.put("paramCode", param.getParamCode());
+            item.put("paramName", param.getParamName());
+            item.put("dataType", param.getDataType());
+            item.put("sourceType", param.getSourceType());
+            item.put("sourceValue", param.getSourceValue());
+            item.put("sortOrder", param.getSortOrder());
+            result.add(item);
+        }
+
+        return Result.success(result);
     }
 }
