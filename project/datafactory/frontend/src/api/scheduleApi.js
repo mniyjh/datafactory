@@ -46,5 +46,20 @@ export const scheduleApi = {
   },
   executions(id) {
     return api.get(`/schedule/${id}/executions`);
+  },
+  // 新增: 审计日志
+  auditLogs(id) {
+    return api.get(`/schedule/${id}/audit-logs`);
+  },
+  // 新增: 每日统计
+  dailyStats(id, days = 7) {
+    return api.get(`/schedule/${id}/daily-stats`, { params: { days } });
+  },
+  // 新增: 统计摘要
+  statsSummary(id) {
+    return api.get(`/schedule/${id}/stats-summary`);
+  },
+  fetchVersionIoParams(taskDslId) {
+    return api.get(`/task-dsl/${taskDslId}/all-io-params`);
   }
 };
