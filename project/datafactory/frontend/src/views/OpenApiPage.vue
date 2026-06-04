@@ -37,7 +37,7 @@
         <div class="layout-left">
           <div class="section-card">
             <div class="section-title">基本信息</div>
-            <a-form :model="formState" layout="vertical">
+            <a-form ref="formRef" :model="formState" :rules="formRules" layout="vertical">
               <a-row :gutter="16">
                 <a-col :span="12">
                   <a-form-item label="接口编码" required>
@@ -287,6 +287,12 @@ import { taskApi } from '../api/task';
 
 const keyword = ref('');
 const loading = ref(false);
+const formRef = ref();
+const formRules = {
+  code: [{ required: true, message: '请输入接口编码', trigger: 'blur' }],
+  name: [{ required: true, message: '请输入接口名称', trigger: 'blur' }],
+  path: [{ required: true, message: '请输入接口路径', trigger: 'blur' }]
+};
 const formVisible = ref(false);
 const detailVisible = ref(false);
 const isEdit = ref(false);
@@ -670,6 +676,11 @@ const refreshTaskSchema = async (taskId) => {
 };
 
 const submitForm = async () => {
+  try {
+    await formRef.value.validate();
+  } catch (e) {
+    return;
+  }
   try {
     if (formState.taskId) {
       const schemaResult = await refreshTaskSchema(formState.taskId);
