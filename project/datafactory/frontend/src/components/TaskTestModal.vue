@@ -409,6 +409,14 @@ const formatDisplayValue = (val) => {
     return `${val.nodeId}.${val.paramCode}`;
   }
   if (typeof val === 'object') return JSON.stringify(val);
+  if (typeof val === 'string') {
+    try {
+      const parsed = JSON.parse(val);
+      if (parsed && typeof parsed === 'object' && parsed.nodeId && parsed.paramCode) {
+        return `${parsed.nodeId}.${parsed.paramCode}`;
+      }
+    } catch (_) { /* fall through */ }
+  }
   return String(val);
 };
 
