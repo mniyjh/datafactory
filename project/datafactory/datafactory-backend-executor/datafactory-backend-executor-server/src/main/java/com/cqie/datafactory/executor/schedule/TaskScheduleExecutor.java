@@ -5,6 +5,8 @@ import com.cqie.datafactory.executor.schedule.event.JobFailureEvent;
 import com.cqie.datafactory.executor.schedule.guard.ExecutionGuard;
 import com.cqie.datafactory.executor.schedule.util.CronHelper;
 import com.cqie.datafactory.executor.service.ExecutorTaskService;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -33,6 +35,7 @@ public class TaskScheduleExecutor {
     private final TaskExecutionQueue taskExecutionQueue;
     private final DistributedScheduleLock distributedLock;
     private final ApplicationEventPublisher eventPublisher;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public TaskScheduleExecutor(ScheduleJobService scheduleJobService,
                                 ExecutorTaskService executorTaskService,
@@ -207,6 +210,32 @@ public class TaskScheduleExecutor {
         params.put("versionId", job.getTaskVersionId());
         if (attempt > 0) {
             params.put("retryAttempt", attempt);
+        }
+
+        // 解析定时任务参数配置，将覆盖值传入执行引擎
+        if (job.getParamsConfig() != null && !job.getParamsConfig().isBlank()) {
+            try {
+                Map<String, Object> configMap = objectMapper.readValue(
+                        job.getParamsConfig(), new TypeReference<Map<String, Object>>() {});
+                // paramsConfig 结构: { "params": [{ "paramCode": "...", "sourceValue": "...", ... }, ...] }
+                // 提取 paramCode -> sourceValue 的映射，注入到执行参数中
+                Object paramsList = configMap.get("params");
+                if (paramsList instanceof List) {
+                    for (Object item : (List<?>) paramsList) {
+                        if (item instanceof Map) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> paramItem = (Map<String, Object>) item;
+                            String paramCode = (String) paramItem.get("paramCode");
+                            Object sourceValue = paramItem.get("sourceValue");
+                            if (paramCode != null && !paramCode.isBlank() && sourceValue != null) {
+                                params.put(paramCode, sourceValue);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("解析定时任务参数配置失败: jobId={}, error={}", job.getId(), e.getMessage());
+            }
         }
 
         String triggerType = (attempt > 0) ? "CRON_RETRY" : "CRON";
