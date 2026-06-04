@@ -211,14 +211,14 @@
                       {{ Number(record.requiredFlag || 0) === 1 ? '必填' : '可选' }}
                     </a-tag>
                   </template>
-                  <template v-else-if="column.dataIndex === 'sourceValue'">
-                    <span>{{ formatSourceDisplay(record.sourceValue) }}</span>
+                  <template v-else-if="column.dataIndex === 'sourceType'">
+                    <a-tag>{{ record.sourceType || 'CONST' }}</a-tag>
                   </template>
-                  <template v-else-if="column.dataIndex === 'paramValue'">
+                  <template v-else-if="column.dataIndex === 'sourceValue'">
                     <a-input
                       v-if="record.ioType === 'INPUT'"
                       v-model:value="paramsConfig[record.id]"
-                      :placeholder="record.paramName || record.paramCode"
+                      :placeholder="formatSourceDisplay(record.sourceValue)"
                       size="small"
                     />
                     <span v-else>{{ syncedOutputValue(record) }}</span>
@@ -354,12 +354,12 @@ const columns = [
 
 const ioParamTableColumns = [
   { title: '分类', dataIndex: 'ioType', width: 80 },
-  { title: '参数编码', dataIndex: 'paramCode', width: 120 },
-  { title: '参数名称', dataIndex: 'paramName', width: 100 },
-  { title: '数据类型', dataIndex: 'dataType', width: 70 },
-  { title: '必填', dataIndex: 'requiredFlag', width: 60 },
-  { title: '来源值', dataIndex: 'sourceValue', width: 100 },
-  { title: '参数值', dataIndex: 'paramValue', width: 160 }
+  { title: '参数编码', dataIndex: 'paramCode', width: 140 },
+  { title: '参数名称', dataIndex: 'paramName', width: 120 },
+  { title: '数据类型', dataIndex: 'dataType', width: 80 },
+  { title: '参数来源', dataIndex: 'sourceType', width: 100 },
+  { title: '来源值', dataIndex: 'sourceValue', width: 200 },
+  { title: '必填', dataIndex: 'requiredFlag', width: 60 }
 ];
 
 // 展开行显示详细信息
@@ -565,7 +565,7 @@ const loadIoParams = async () => {
               r.nodeId === p.nodeId && r.ioType === p.ioType && r.paramCode === p.paramCode
             );
             if (match) {
-              paramsConfig.value[match.id] = p.paramValue;
+              paramsConfig.value[match.id] = p.sourceValue;
             }
           });
         }
@@ -595,7 +595,6 @@ const formatSourceDisplay = (val) => {
 
 const syncedOutputValue = (record) => {
   if (record.ioType !== 'OUTPUT') return formatSourceDisplay(record.sourceValue);
-  // For START/END nodes, output value syncs from corresponding input param's test value
   if (isStartOrEndByNode({ type: record.nodeType, componentCode: record.componentCode })) {
     const inputMatch = ioParamsList.value.find(
       p => p.ioType === 'INPUT' && p.nodeId === record.nodeId && p.paramCode === record.paramCode
@@ -653,7 +652,7 @@ const handleSave = async () => {
     if (payload.windowEnd && typeof payload.windowEnd === 'object') {
       payload.windowEnd = payload.windowEnd.format('HH:mm:ss');
     }
-    // 序列化参数配置
+    // 序列化参数配置 (修改的来源值)
     const filledParams = ioParamsList.value
       .filter(p => {
         const val = paramsConfig.value[p.id];
@@ -666,7 +665,9 @@ const handleSave = async () => {
         paramCode: p.paramCode,
         paramName: p.paramName,
         dataType: p.dataType,
-        paramValue: paramsConfig.value[p.id]
+        sourceType: p.sourceType,
+        originalSourceValue: typeof p.sourceValue === 'object' ? JSON.stringify(p.sourceValue) : String(p.sourceValue || ''),
+        sourceValue: paramsConfig.value[p.id]  // the overridden value
       }));
     payload.paramsConfig = filledParams.length > 0 ? JSON.stringify({ params: filledParams }) : null;
     if (editingId.value) {
