@@ -32,7 +32,7 @@
     </a-table>
 
     <a-modal v-model:open="formVisible" :title="isEdit ? '编辑脚本' : '新建脚本'" :width="760" :footer="null" destroyOnClose>
-      <a-form :model="formState" :label-col="{ style: { width: '130px' } }" class="script-form">
+      <a-form ref="formRef" :model="formState" :rules="formRules" :label-col="{ style: { width: '130px' } }" class="script-form">
         <a-form-item label="脚本编码" required>
           <a-input v-model:value="formState.code" :disabled="isEdit" placeholder="例如：SCRIPT_PYTHON_001" />
         </a-form-item>
@@ -143,6 +143,12 @@ import { scriptApi } from '../api/scriptApi';
 const keyword = ref('');
 const loading = ref(false);
 const formVisible = ref(false);
+const formRef = ref();
+const formRules = {
+  code: [{ required: true, message: '请输入脚本编码', trigger: 'blur' }],
+  name: [{ required: true, message: '请输入脚本名称', trigger: 'blur' }],
+  type: [{ required: true, message: '请选择脚本类型', trigger: 'change' }]
+};
 const detailVisible = ref(false);
 const envVisible = ref(false);
 const isEdit = ref(false);
@@ -239,6 +245,11 @@ const openDetail = (row) => {
 };
 
 const submitForm = async () => {
+  try {
+    await formRef.value.validate();
+  } catch (e) {
+    return;
+  }
   try {
     if (isEdit.value) {
       await scriptApi.updateScript(editingId.value, formState);
