@@ -10,7 +10,7 @@
             <a-input :value="`${currentEnv === 'PROD' ? '生产环境' : '测试环境'} / 版本 ${displayVersion}`" style="width: 100%" readonly />
           </div>
 
-          <div class="config-management" style="margin-top: 16px; display: flex; align-items: center; gap: 8px;">
+          <div class="config-management" style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
             <span class="label">测试配置：</span>
             <a-select v-model:value="selectedConfigId" style="flex: 1" placeholder="请选择测试配置" @change="loadConfig"
               :loading="configsLoading">
@@ -23,55 +23,52 @@
                 </div>
               </a-select-option>
             </a-select>
-            <a-button @click="addNewConfig">+ 新增配置</a-button>
-            <a-button type="primary" ghost @click="saveCurrentConfig">保存当前配置</a-button>
+            <a-button @click="addNewConfig">+ 新增</a-button>
+            <a-button type="primary" ghost @click="saveCurrentConfig">保存配置</a-button>
           </div>
 
-          <div class="input-config-section" style="margin-top: 20px;">
-            <div style="display: flex; align-items: center; margin-bottom: 12px;">
-              <span class="label">参数配置：</span>
-              <a-radio-group v-model:value="configMode" button-style="solid">
-                <a-radio-button value="JSON">JSON配置</a-radio-button>
-                <a-radio-button value="IO">输入输出参数配置</a-radio-button>
-              </a-radio-group>
-            </div>
+          <!-- Flow Viewer -->
+          <div class="flow-viewer-section" style="margin-top: 8px; height: 260px;">
+            <FlowViewer :dsl-content="dslContent" @node-click="onFlowNodeClick" />
+          </div>
 
-            <div class="config-content-area">
-              <div v-if="configMode === 'IO'" class="list-mode mode-container">
-                <div class="list-section">
-                  <div class="section-title">输入输出参数配置</div>
-                  <a-table :columns="ioColumns" :data-source="ioParamList" :pagination="false" size="middle"
-                    bordered row-key="id" :scroll="{ x: 'max-content', y: 460 }">
-                    <template #bodyCell="{ column, record }">
-                      <template v-if="column.dataIndex === 'ioType'">
-                        <a-tag :color="record.ioType === 'INPUT' ? 'processing' : 'success'">{{ record.ioType === 'INPUT' ? '输入参数' : '输出参数' }}</a-tag>
-                      </template>
-                      <template v-else-if="column.dataIndex === 'requiredFlag'">
-                        <a-tag :color="Number(record.requiredFlag || 0) === 1 ? 'error' : 'default'">{{ Number(record.requiredFlag || 0) === 1 ? '必填' : '可选' }}</a-tag>
-                      </template>
-                      <template v-else-if="column.dataIndex === 'sourceType'">
-                        <a-tag>{{ record.sourceType || '-' }}</a-tag>
-                      </template>
-                      <template v-else-if="column.dataIndex === 'sourceValue'">
-                        <a-input v-if="record.ioType === 'INPUT'" v-model:value="record.testValue" placeholder="-" />
-                        <span v-else>{{ syncedOrSourceValue(record) }}</span>
-                      </template>
-                    </template>
-                  </a-table>
-                </div>
-              </div>
-
-              <div v-else class="json-mode mode-container">
-                <div class="list-section">
-                  <div class="section-title">JSON配置内容</div>
-                  <a-textarea v-model:value="jsonText" placeholder='{"nodeId": {"param1": "value1"}}' readonly
-                    style="font-family: monospace; height: 420px; resize: none;" />
-                </div>
-                <div class="json-actions" style="margin-top: 16px; display: flex; gap: 8px;">
-                  <a-button @click="formatJson">格式化JSON</a-button>
-                </div>
-              </div>
+          <!-- Selected Node Params -->
+          <div class="node-params-section" style="margin-top: 12px;">
+            <div v-if="selectedFlowNode" class="section-title">
+              选中节点: {{ selectedFlowNode.name || selectedFlowNode.id }}
             </div>
+            <div v-else class="section-title">请点击画布中的节点查看参数</div>
+            <a-table
+              v-if="filteredIoParams.length > 0"
+              :columns="ioColumns"
+              :data-source="filteredIoParams"
+              :pagination="false"
+              size="small"
+              bordered
+              row-key="id"
+              :scroll="{ y: 240 }"
+            >
+              <template #bodyCell="{ column, record }">
+                <template v-if="column.dataIndex === 'ioType'">
+                  <a-tag :color="record.ioType === 'INPUT' ? 'processing' : 'success'">
+                    {{ record.ioType === 'INPUT' ? '输入参数' : '输出参数' }}
+                  </a-tag>
+                </template>
+                <template v-else-if="column.dataIndex === 'requiredFlag'">
+                  <a-tag :color="Number(record.requiredFlag || 0) === 1 ? 'error' : 'default'">
+                    {{ Number(record.requiredFlag || 0) === 1 ? '必填' : '可选' }}
+                  </a-tag>
+                </template>
+                <template v-else-if="column.dataIndex === 'sourceType'">
+                  <a-tag>{{ record.sourceType || '-' }}</a-tag>
+                </template>
+                <template v-else-if="column.dataIndex === 'sourceValue'">
+                  <a-input v-if="record.ioType === 'INPUT'" v-model:value="record.testValue" placeholder="-" size="small" />
+                  <span v-else>{{ syncedOrSourceValue(record) }}</span>
+                </template>
+              </template>
+            </a-table>
+            <a-empty v-else-if="selectedFlowNode" description="该节点暂无参数" />
           </div>
         </div>
 
@@ -121,6 +118,7 @@ import { ref, reactive, watch, onMounted, computed } from 'vue';
 import { message } from 'ant-design-vue';
 import { taskApi } from '../api/task';
 import { componentApi } from '../api/componentApi';
+import FlowViewer from './FlowViewer.vue';
 
 const props = defineProps({
   open: Boolean,
@@ -139,8 +137,6 @@ const emit = defineEmits(['update:open', 'close']);
 const visible = ref(false);
 const currentEnv = ref(props.environment);
 const displayVersion = computed(() => props.version || '-');
-const configMode = ref('IO');
-const jsonText = ref('{}');
 const ioParamList = ref([]);
 const executing = ref(false);
 const executionResult = ref(false);
@@ -152,6 +148,12 @@ const configsLoading = ref(false);
 const selectedConfigId = ref(null);
 const newConfigVisible = ref(false);
 const newConfigName = ref('');
+
+const selectedFlowNode = ref(null);
+const filteredIoParams = computed(() => {
+  if (!selectedFlowNode.value) return [];
+  return ioParamList.value.filter(p => p.nodeId === selectedFlowNode.value.id);
+});
 
 const ioColumns = [
   { title: '组件ID', dataIndex: 'nodeId', width: 180 },
@@ -307,7 +309,6 @@ const getOrderedNodeIds = (dsl) => {
 const loadDefaultParams = async () => {
   if (!props.dslContent) {
     ioParamList.value = [];
-    jsonText.value = '{}';
     return;
   }
 
@@ -389,13 +390,13 @@ const loadDefaultParams = async () => {
     });
 
     ioParamList.value = rows;
-
-    if (!selectedConfigId.value) {
-      jsonText.value = JSON.stringify(dsl, null, 2);
-    }
   } catch (e) {
     console.error('Failed to parse DSL for test params', e);
   }
+};
+
+const onFlowNodeClick = (node) => {
+  selectedFlowNode.value = node;
 };
 
 const formatDisplayValue = (val) => {
@@ -426,14 +427,6 @@ const syncedOrSourceValue = (record) => {
   return formatDisplayValue(record.sourceValue);
 };
 
-const formatJson = () => {
-  try {
-    const obj = JSON.parse(jsonText.value);
-    jsonText.value = JSON.stringify(obj, null, 2);
-  } catch (e) {
-    message.error('JSON格式错误，无法格式化');
-  }
-};
 
 const addNewConfig = () => {
   newConfigName.value = '';
@@ -447,12 +440,19 @@ const handleAddNewConfig = async () => {
   }
 
   try {
-    const configData = configMode.value === 'JSON' ? jsonText.value : JSON.stringify(getCurrentParamsAsJson());
+    const jsonObj = {};
+    ioParamList.value
+      .filter(p => p.ioType === 'INPUT')
+      .forEach(p => {
+        if (!jsonObj[p.nodeId]) jsonObj[p.nodeId] = {};
+        jsonObj[p.nodeId][p.paramCode] = p.testValue;
+      });
+    const configData = JSON.stringify(jsonObj);
     const res = await taskApi.saveTestConfig({
       taskId: props.taskId,
       versionId: props.versionId,
       name: newConfigName.value,
-      configMode: configMode.value,
+      configMode: 'INPUT',
       configData: configData,
       isDefault: testConfigs.value.length === 0 ? 1 : 0
     });
@@ -478,30 +478,6 @@ const handleAddNewConfig = async () => {
   }
 };
 
-const getCurrentParamsAsJson = () => {
-  const jsonObj = {};
-  ioParamList.value
-    .filter(p => p.ioType === 'INPUT')
-    .forEach(p => {
-      const v = p.testValue;
-      if (v && typeof v === 'object' && v.nodeId && v.paramCode) return;
-      if (!jsonObj[p.nodeId]) jsonObj[p.nodeId] = {};
-      jsonObj[p.nodeId][p.paramCode] = v;
-    });
-  return jsonObj;
-};
-
-// 执行时用：过滤未解析对象 + 拍平到顶层
-const getExecutePayload = () => {
-  const nested = getCurrentParamsAsJson();
-  const flat = {};
-  Object.values(nested).forEach(nodeParams => {
-    if (nodeParams && typeof nodeParams === 'object') {
-      Object.entries(nodeParams).forEach(([k, v]) => { flat[k] = v; });
-    }
-  });
-  return flat;
-};
 
 const saveCurrentConfig = async () => {
   const config = testConfigs.value.find(c => c.id === selectedConfigId.value);
@@ -511,17 +487,19 @@ const saveCurrentConfig = async () => {
   }
 
   try {
-    let data = '';
-    if (configMode.value !== 'JSON') {
-      data = JSON.stringify(getCurrentParamsAsJson());
-    } else {
-      data = jsonText.value;
-    }
+    const jsonObj = {};
+    ioParamList.value
+      .filter(p => p.ioType === 'INPUT')
+      .forEach(p => {
+        if (!jsonObj[p.nodeId]) jsonObj[p.nodeId] = {};
+        jsonObj[p.nodeId][p.paramCode] = p.testValue;
+      });
+    const data = JSON.stringify(jsonObj);
 
     message.loading({ content: '正在保存配置...', key: 'saving' });
     await taskApi.saveTestConfig({
       ...config,
-      configMode: configMode.value,
+      configMode: 'INPUT',
       configData: data
     });
     message.success({ content: '配置保存成功', key: 'saving' });
@@ -535,9 +513,7 @@ const loadConfig = (id) => {
   if (!id) return;
   const config = testConfigs.value.find(c => String(c.id) === String(id));
   if (config) {
-    const targetMode = config.configMode || 'INPUT';
-
-    // 测试配置只影响入参值，JSON区固定显示当前任务JSON代码
+    // 测试配置只影响入参值
     try {
       const obj = JSON.parse(config.configData || '{}');
       ioParamList.value.forEach(p => {
@@ -548,10 +524,6 @@ const loadConfig = (id) => {
     } catch (e) {
       console.error('Failed to parse configData on load', e);
     }
-
-    setTimeout(() => {
-      configMode.value = targetMode;
-    }, 0);
   }
 };
 
@@ -581,13 +553,13 @@ const handleExecute = async () => {
   outputJson.value = '';
 
   try {
-    let payload = {};
-    if (configMode.value !== 'JSON') {
-      payload = getExecutePayload();
-    } else {
-      payload = JSON.parse(jsonText.value);
-    }
-
+    // Build payload from input params' testValues
+    const payload = {};
+    ioParamList.value
+      .filter(p => p.ioType === 'INPUT' && p.testValue)
+      .forEach(p => {
+        payload[p.paramCode] = p.testValue;
+      });
     if (props.versionId) {
       payload.versionId = props.versionId;
     }
@@ -677,16 +649,6 @@ const handleExecute = async () => {
   }
 };
 
-// 同步列表和JSON
-watch(configMode, (newMode) => {
-  if (newMode === 'JSON') {
-    try {
-      jsonText.value = JSON.stringify(JSON.parse(props.dslContent || '{}'), null, 2);
-    } catch (e) {
-      jsonText.value = '{}';
-    }
-  }
-});
 
 </script>
 
@@ -789,18 +751,6 @@ watch(configMode, (newMode) => {
 .env-selector {
   display: flex;
   align-items: center;
-}
-
-.config-content-area {
-  height: 580px;
-  border: 1px solid #f0f0f0;
-  border-radius: 4px;
-  padding: 16px;
-  background: #fff;
-}
-
-.mode-container {
-  width: 100%;
 }
 
 .section-title {
