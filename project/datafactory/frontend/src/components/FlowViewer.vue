@@ -40,7 +40,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 
 const NODE_WIDTH = 160;
 const NODE_HEIGHT = 62;
@@ -74,33 +74,49 @@ const parseDsl = (raw) => {
   }
 };
 
+const centerGraph = () => {
+  if (nodes.value.length === 0 || !canvasRef.value) return;
+  const rect = canvasRef.value.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) return;
+  const padding = 40;
+  const minX = Math.min(...nodes.value.map(n => n.x || 0));
+  const minY = Math.min(...nodes.value.map(n => n.y || 0));
+  const maxX = Math.max(...nodes.value.map(n => (n.x || 0) + NODE_WIDTH));
+  const maxY = Math.max(...nodes.value.map(n => (n.y || 0) + NODE_HEIGHT));
+  const graphW = maxX - minX;
+  const graphH = maxY - minY;
+  if (graphW <= 0 || graphH <= 0) return;
+  const availW = rect.width - padding * 2;
+  const availH = rect.height - padding * 2;
+  scale.value = Math.min(1.2, availW / graphW, availH / graphH);
+  pan.value = {
+    x: padding + (availW - graphW * scale.value) / 2 - minX * scale.value,
+    y: padding + (availH - graphH * scale.value) / 2 - minY * scale.value,
+  };
+};
+
 watch(() => props.dslContent, (val) => {
   const dsl = parseDsl(val);
   nodes.value = dsl.nodes;
   edges.value = dsl.edges;
   selectedId.value = null;
-  // Auto-center the graph
-  if (nodes.value.length > 0 && canvasRef.value) {
-    const canvasRect = canvasRef.value.getBoundingClientRect();
-    const minX = Math.min(...nodes.value.map(n => n.x || 0));
-    const minY = Math.min(...nodes.value.map(n => n.y || 0));
-    const maxX = Math.max(...nodes.value.map(n => (n.x || 0) + NODE_WIDTH));
-    const maxY = Math.max(...nodes.value.map(n => (n.y || 0) + NODE_HEIGHT));
-    const graphW = maxX - minX;
-    const graphH = maxY - minY;
-    scale.value = Math.min(1, Math.min(
-      (canvasRect.width - 60) / (graphW || 1),
-      (canvasRect.height - 60) / (graphH || 1)
-    ));
-    pan.value = {
-      x: (canvasRect.width - graphW * scale.value) / 2 - minX * scale.value,
-      y: (canvasRect.height - graphH * scale.value) / 2 - minY * scale.value,
-    };
-  } else {
-    scale.value = 1;
-    pan.value = { x: 0, y: 0 };
-  }
+  nextTick(() => centerGraph());
 }, { immediate: true });
+
+let resizeObserver = null;
+onMounted(() => {
+  nextTick(() => centerGraph());
+  if (canvasRef.value) {
+    resizeObserver = new ResizeObserver(() => centerGraph());
+    resizeObserver.observe(canvasRef.value);
+  }
+});
+onBeforeUnmount(() => {
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
+});
 
 const stageStyle = computed(() => ({
   transform: `translate(${pan.value.x}px, ${pan.value.y}px) scale(${scale.value})`,
