@@ -79,8 +79,27 @@ watch(() => props.dslContent, (val) => {
   nodes.value = dsl.nodes;
   edges.value = dsl.edges;
   selectedId.value = null;
-  scale.value = 1;
-  pan.value = { x: 0, y: 0 };
+  // Auto-center the graph
+  if (nodes.value.length > 0 && canvasRef.value) {
+    const canvasRect = canvasRef.value.getBoundingClientRect();
+    const minX = Math.min(...nodes.value.map(n => n.x || 0));
+    const minY = Math.min(...nodes.value.map(n => n.y || 0));
+    const maxX = Math.max(...nodes.value.map(n => (n.x || 0) + NODE_WIDTH));
+    const maxY = Math.max(...nodes.value.map(n => (n.y || 0) + NODE_HEIGHT));
+    const graphW = maxX - minX;
+    const graphH = maxY - minY;
+    scale.value = Math.min(1, Math.min(
+      (canvasRect.width - 60) / (graphW || 1),
+      (canvasRect.height - 60) / (graphH || 1)
+    ));
+    pan.value = {
+      x: (canvasRect.width - graphW * scale.value) / 2 - minX * scale.value,
+      y: (canvasRect.height - graphH * scale.value) / 2 - minY * scale.value,
+    };
+  } else {
+    scale.value = 1;
+    pan.value = { x: 0, y: 0 };
+  }
 }, { immediate: true });
 
 const stageStyle = computed(() => ({
