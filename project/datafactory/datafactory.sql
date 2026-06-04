@@ -447,13 +447,68 @@ CREATE TABLE IF NOT EXISTS schedule_job (
   cron_expression VARCHAR(64) NOT NULL,
   environment VARCHAR(20) DEFAULT 'PROD',
   status TINYINT DEFAULT 1,
+  retry_count INT NOT NULL DEFAULT 0 COMMENT '失败重试次数，0=不重试',
+  retry_interval INT NOT NULL DEFAULT 60 COMMENT '重试间隔(秒)',
+  current_retry INT NOT NULL DEFAULT 0 COMMENT '当前已重试次数',
+  executor_timeout INT NOT NULL DEFAULT 0 COMMENT '执行超时(秒)，0=不限制',
+  block_strategy VARCHAR(32) NOT NULL DEFAULT 'SKIP' COMMENT '并发策略: SKIP/QUEUE/COVER',
+  max_queue_size INT NOT NULL DEFAULT 5 COMMENT 'QUEUE策略下最大排队数',
+  misfire_strategy VARCHAR(32) NOT NULL DEFAULT 'IGNORE' COMMENT '错过触发策略: IGNORE/FIRE_ONCE/FIRE_ALL',
+  window_start TIME DEFAULT NULL COMMENT '允许执行开始时间',
+  window_end TIME DEFAULT NULL COMMENT '允许执行结束时间',
+  parent_job_id BIGINT DEFAULT NULL COMMENT '父调度ID，父任务成功后触发',
+  alarm_on_failure TINYINT NOT NULL DEFAULT 1 COMMENT '失败时告警: 0-否 1-是',
+  alarm_on_timeout TINYINT NOT NULL DEFAULT 1 COMMENT '超时时告警: 0-否 1-是',
+  alarm_email VARCHAR(255) DEFAULT NULL COMMENT '告警邮箱(多个逗号分隔)',
+  params_config LONGTEXT DEFAULT NULL COMMENT '定时任务参数配置(JSON)',
   last_execution_id VARCHAR(64),
   last_fire_time DATETIME,
   next_fire_time DATETIME,
   created_by VARCHAR(64) DEFAULT 'admin',
   created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_by VARCHAR(64) DEFAULT 'admin',
-  updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_task_id (task_id),
+  KEY idx_status (status),
+  KEY idx_parent_job (parent_job_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS schedule_lock (
+  lock_key VARCHAR(128) PRIMARY KEY COMMENT '锁键(job_{jobId})',
+  holder VARCHAR(128) NOT NULL COMMENT '持有者标识(实例ID)',
+  acquire_at DATETIME(3) NOT NULL COMMENT '获取时间',
+  expire_at DATETIME(3) NOT NULL COMMENT '过期时间',
+  INDEX idx_expire (expire_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS schedule_job_audit_log (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  job_id BIGINT NOT NULL COMMENT '关联 schedule_job.id',
+  change_type VARCHAR(16) NOT NULL COMMENT 'CREATE/UPDATE/DELETE/TOGGLE',
+  field_name VARCHAR(64) DEFAULT NULL COMMENT '变更字段',
+  old_value TEXT DEFAULT NULL COMMENT '旧值',
+  new_value TEXT DEFAULT NULL COMMENT '新值',
+  changed_by VARCHAR(64) DEFAULT 'admin',
+  changed_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_job_id (job_id),
+  INDEX idx_changed_time (changed_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS schedule_job_daily_stats (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  job_id BIGINT NOT NULL COMMENT '关联 schedule_job.id',
+  stat_date DATE NOT NULL COMMENT '统计日期',
+  total_count INT NOT NULL DEFAULT 0 COMMENT '总执行次数',
+  success_count INT NOT NULL DEFAULT 0 COMMENT '成功次数',
+  failure_count INT NOT NULL DEFAULT 0 COMMENT '失败次数',
+  timeout_count INT NOT NULL DEFAULT 0 COMMENT '超时次数',
+  skip_count INT NOT NULL DEFAULT 0 COMMENT '跳过次数(并发冲突)',
+  avg_duration_ms BIGINT NOT NULL DEFAULT 0 COMMENT '平均执行时长(ms)',
+  max_duration_ms BIGINT NOT NULL DEFAULT 0 COMMENT '最长执行时长(ms)',
+  min_duration_ms BIGINT NOT NULL DEFAULT 0 COMMENT '最短执行时长(ms)',
+  created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_job_date (job_id, stat_date),
+  INDEX idx_stat_date (stat_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================

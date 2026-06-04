@@ -29,7 +29,7 @@
       <div class="panel">
         <div class="title">执行统计</div>
         <div class="body" style="flex-direction:column;gap:16px;justify-content:center;align-items:center">
-          <a-progress type="circle" :percent="successRate" :stroke-color="{ '0%': '#ff4d4f', '100%': '#52c41a' }" />
+          <a-progress type="circle" :percent="successRate" :format="rateFormat" :stroke-color="{ '0%': '#ff4d4f', '100%': '#52c41a' }" />
           <div style="color:#555;font-size:16px">总体执行成功率</div>
           <div class="stat-detail" style="display:flex;gap:20px;margin-top:8px">
             <span>成功: <span style="color:#52c41a">{{ executionStats.success }}</span></span>
@@ -59,7 +59,8 @@ const recentLogs = ref([]);
 const executionStats = ref({
   total: 0,
   success: 0,
-  failure: 0
+  failure: 0,
+  rate: 0
 });
 
 const displayStats = computed(() => [
@@ -70,9 +71,12 @@ const displayStats = computed(() => [
 ]);
 
 const successRate = computed(() => {
-  if (executionStats.value.total === 0) return 0;
-  return Math.round((executionStats.value.success / executionStats.value.total) * 100);
+  return executionStats.value.rate || 0;
 });
+
+const rateFormat = (percent) => {
+  return Number(percent).toFixed(2) + '%';
+};
 
 const recentColumns = [
   { title: '任务名称', dataIndex: 'taskName', ellipsis: true },
@@ -86,7 +90,7 @@ const loadDashboardData = async () => {
     const [statsRes, logsRes, overviewRes] = await Promise.all([
       dashboardApi.getStats(),
       taskApi.pageLogs({ current: 1, size: 5 }),
-      dashboardApi.getOverview().catch(() => ({ data: { data: null } }))
+      taskApi.getExecutionStats().catch(() => ({ data: { data: null } }))
     ]);
 
     if (statsRes.data?.data) {
@@ -102,7 +106,8 @@ const loadDashboardData = async () => {
       executionStats.value = {
         total: ov.total || 0,
         success: ov.success || 0,
-        failure: ov.failure || 0
+        failure: ov.failure || 0,
+        rate: ov.rate || 0
       };
     }
   } catch (e) {

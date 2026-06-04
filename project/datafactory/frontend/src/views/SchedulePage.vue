@@ -402,12 +402,16 @@ const onTaskChange = (taskId) => {
   form.value.taskCode = t?.taskCode || '';
   form.value.taskVersionId = null;
   versionList.value = [];
+  ioParamsList.value = [];
+  paramsConfig.value = {};
   if (form.value.environment) loadVersionList();
 };
 
 const onEnvironmentChange = () => {
   form.value.taskVersionId = null;
   versionList.value = [];
+  ioParamsList.value = [];
+  paramsConfig.value = {};
   if (form.value.taskId) loadVersionList();
 };
 
@@ -452,6 +456,7 @@ const loadIoParams = async () => {
     }
   } catch (e) {
     ioParamsList.value = [];
+    console.warn('加载IO参数失败:', e);
   } finally {
     paramsLoading.value = false;
   }
@@ -498,7 +503,11 @@ const handleSave = async () => {
     }
     // 序列化参数配置
     const filledParams = ioParamsList.value
-      .filter(p => paramsConfig.value[p.nodeId + '|' + p.ioType + '|' + p.paramCode])
+      .filter(p => {
+        const key = p.nodeId + '|' + p.ioType + '|' + p.paramCode;
+        const val = paramsConfig.value[key];
+        return val !== undefined && val !== null && val !== '';
+      })
       .map(p => ({
         nodeId: p.nodeId,
         nodeName: p.nodeName,

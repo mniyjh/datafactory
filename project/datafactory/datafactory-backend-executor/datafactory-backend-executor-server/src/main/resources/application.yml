@@ -47,6 +47,16 @@ grpc:
     host: ${GRPC_PYTHON_HOST:127.0.0.1}
     port: ${GRPC_PYTHON_PORT:50051}
 
+datafactory:
+  scheduler:
+    high-frequency:
+      enabled: true
+      thread-pool-size: 4
+      min-interval-seconds: 60
+    log-cleanup:
+      cron: "0 0 * * * ?"
+      retention-days: 7
+
 security:
   datasource:
     secret-key: ${DATASOURCE_ENCRYPT_KEY:RGF0YUZhY3RvcnlERU1PS2V5MjAyNiEhMTIzNDU2Nzg=}

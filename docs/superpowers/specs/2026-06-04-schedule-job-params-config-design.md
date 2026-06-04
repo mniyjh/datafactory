@@ -14,8 +14,10 @@
 
 ### 2.1 schedule_job 表新增字段
 
+在 `CREATE TABLE schedule_job` 中新增一列（位于 `alarm_email` 之后）：
+
 ```sql
-ALTER TABLE schedule_job ADD COLUMN params_config LONGTEXT DEFAULT NULL COMMENT '定时任务参数配置(JSON)';
+params_config LONGTEXT DEFAULT NULL COMMENT '定时任务参数配置(JSON)',
 ```
 
 ### 2.2 params_config JSON 结构

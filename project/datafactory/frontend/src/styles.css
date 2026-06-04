@@ -29,15 +29,32 @@ body,
   overflow: hidden;
   line-height: 1.2;
   transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .logo-collapsed {
   font-size: 12px;
   line-height: 1.15;
-  padding: 8px 2px 6px;
+  padding: 10px 2px 10px;
   white-space: normal;
   word-break: break-all;
   overflow: visible;
+}
+
+.logo-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.logo-collapsed .logo-icon {
+  font-size: 24px;
+}
+
+.logo-text {
+  white-space: nowrap;
 }
 
 .side-menu {

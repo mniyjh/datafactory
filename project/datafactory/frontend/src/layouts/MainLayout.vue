@@ -2,11 +2,10 @@
   <a-layout class="app-layout">
     <a-layout-sider v-model:collapsed="collapsed" :width="200" :collapsed-width="64" collapsible class="sider">
       <div class="logo" :class="{ 'logo-collapsed': collapsed }">
-        <template v-if="collapsed">
-          <span>数据</span><br />
-          <span>工厂</span>
+        <BuildOutlined class="logo-icon" />
+        <template v-if="!collapsed">
+          <span class="logo-text">数据工厂</span>
         </template>
-        <template v-else>数据工厂</template>
       </div>
 
       <a-menu v-model:selectedKeys="selectedKeys" v-model:openKeys="openKeys" :inline-collapsed="collapsed" theme="dark"
@@ -102,7 +101,8 @@
       AppstoreOutlined,
       ClockCircleOutlined,
       MenuFoldOutlined,
-      MenuUnfoldOutlined
+      MenuUnfoldOutlined,
+      BuildOutlined
     } from '@ant-design/icons-vue';
 
     const route = useRoute();

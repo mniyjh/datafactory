@@ -30,9 +30,9 @@
                 v-for="component in group.items"
                 :key="(component.code || component.type) + component.label"
                 class="node-item"
-                :class="{ disabled: !isComponentAvailable(component.type) }"
-                :draggable="isComponentAvailable(component.type)"
-                @dragstart="isComponentAvailable(component.type) ? onDragStart(component, $event) : null"
+                :class="{ disabled: !isComponentAvailable(component) }"
+                :draggable="isComponentAvailable(component)"
+                @dragstart="isComponentAvailable(component) ? onDragStart(component, $event) : null"
               >
                 <div class="node-item-title">{{ component.label }}</div>
               </div>
@@ -136,9 +136,19 @@
     >
       <div v-if="selectedNode" class="node-editor-form">
         <a-row :gutter="16">
-          <a-col :span="8"><a-form-item label="组件ID"><a-input :value="selectedNode.id" disabled /></a-form-item></a-col>
+          <a-col :span="8">
+            <a-form-item label="组件ID">
+              <a-input
+                v-model:value="editingNodeId"
+                :disabled="readonly"
+                :status="nodeIdError ? 'error' : ''"
+                @change="onNodeIdChange"
+              />
+              <div v-if="nodeIdError" style="color: #ff4d4f; font-size: 12px; margin-top: 4px;">{{ nodeIdError }}</div>
+            </a-form-item>
+          </a-col>
           <a-col :span="8"><a-form-item label="组件名称"><a-input v-model:value="selectedNode.name" :disabled="readonly" /></a-form-item></a-col>
-          <a-col :span="8"><a-form-item label="组件类型"><a-input :value="typeName(selectedNode.type)" disabled /></a-form-item></a-col>
+          <a-col :span="8"><a-form-item label="组件类型"><a-input :value="typeName(selectedNode)" disabled /></a-form-item></a-col>
         </a-row>
 
         <a-tabs v-model:activeKey="nodeEditorTab">
@@ -278,16 +288,8 @@ const componentMetaMap = ref({});
 const canvasDatasourceOptions = ref([]);
 const canvasApiOptions = ref([]);
 const canvasScriptOptions = ref([]);
-const componentTypeNameMap = {
-  START: '开始组件',
-  END: '结束组件',
-  DB: '数据库组件',
-  BRANCH: '条件分支组件',
-  COMMON_TASK: '通用任务组件',
-  SCRIPT: '脚本组件',
-  API: '接口组件',
-  FILTER: '数据过滤组件'
-};
+// 组件类型直接使用组件管理页面的 componentType（数据接入/数据处理/流程控制）
+// 不再硬编码推导插件类型，ExecEngine 的 resolvePluginType 通过 componentCode 和 fieldValues 自行推导
 
 const valueTypeOptions = [
   { value: 'STRING', label: '字符串' },
@@ -356,11 +358,11 @@ const getFieldInputComponent = (record = {}) => {
 const groupedPalette = computed(() => {
   const groups = {};
   componentPalette.value.forEach((item) => {
-    const code = item.groupCode || 'UNCLASSIFIED';
+    const code = item.groupCode || '未分类';
     if (!groups[code]) {
       groups[code] = {
         code,
-        name: item.groupName || componentTypeNameMap[code] || code,
+        name: item.groupName || code,   // 直接使用后端返回的分类名，不再回退到硬编码映射
         items: []
       };
     }
@@ -388,11 +390,70 @@ const stageStyle = computed(() => ({
 }));
 
 const selectedNode = computed(() => nodes.value.find((n) => n.id === selectedId.value) || null);
-const typeName = (t) => componentPalette.value.find((c) => c.type === t)?.label || t;
+// 组件类型显示：取组件管理页面的"组件分类"（数据接入/数据处理/流程控制）
+// node.type 已是 componentType，对旧数据（type=FILTER/SCRIPT等）通过 componentCode 反查 palette
+const typeName = (node) => {
+  if (!node) return '';
+  // 已经是中文分类名，直接返回
+  const t = node.type || '';
+  if (t === '数据接入' || t === '数据处理' || t === '流程控制') return t;
+  // 通过 componentCode 反查 palette 获取分类
+  if (node.componentCode) {
+    const fromPalette = componentPalette.value.find((c) => c.code === node.componentCode);
+    if (fromPalette) return fromPalette.type || fromPalette.groupCode || t;
+  }
+  // 最后回退
+  return t || node.name || '';
+};
 
 const nodeFields = ref([]);
 const nodeInputParams = ref([]);
 const nodeOutputParams = ref([]);
+// 组件 ID 手动编辑状态
+const editingNodeId = ref('');
+const nodeIdError = ref('');
+
+// 组件 ID 变更校验：空值、格式、重复
+const onNodeIdChange = () => {
+  const node = selectedNode.value;
+  if (!node) return;
+  const newId = editingNodeId.value?.trim();
+
+  // 1. 空值校验
+  if (!newId) {
+    nodeIdError.value = '组件ID不能为空';
+    return;
+  }
+
+  // 2. 格式校验：只允许字母、数字、下划线、连字符
+  if (!/^[a-zA-Z0-9_-]+$/.test(newId)) {
+    nodeIdError.value = '组件ID只能包含字母、数字、下划线和连字符';
+    return;
+  }
+
+  // 3. 重复校验：不能与其他节点 ID 重复（排除自身）
+  const duplicate = nodes.value.some(n => n.id === newId && n.id !== node.id);
+  if (duplicate) {
+    nodeIdError.value = `组件ID "${newId}" 已存在，请使用其他ID`;
+    return;
+  }
+
+  // 4. 更新连线中对该节点的引用
+  const oldId = node.id;
+  edges.value.forEach(edge => {
+    if (edge.source && typeof edge.source === 'object' && edge.source.nodeId === oldId) {
+      edge.source = { ...edge.source, nodeId: newId };
+    }
+    if (edge.target && typeof edge.target === 'object' && edge.target.nodeId === oldId) {
+      edge.target = { ...edge.target, nodeId: newId };
+    }
+  });
+
+  // 5. 应用新 ID
+  node.id = newId;
+  selectedId.value = newId;
+  nodeIdError.value = '';
+};
 // 过滤模式字段分组
 const FILTER_MODE_FIELDS = {
   EXPRESSION: new Set(['filterMode', 'sourceNodeId', 'expression', 'result_var']),
@@ -697,14 +758,15 @@ const edgeLines = computed(() => edges.value.map((edge) => {
 
 const nodeStyle = (item) => ({ left: `${item.x}px`, top: `${item.y}px`, width: `${NODE_WIDTH}px`, height: `${NODE_HEIGHT}px` });
 
-const isComponentAvailable = (type) => {
-  if (type === 'START') return !nodes.value.some((n) => isStartNode(n));
-  if (type === 'END') return !nodes.value.some((n) => isEndNode(n));
+const isComponentAvailable = (component) => {
+  const code = String(component?.code || component?.type || '').toUpperCase();
+  if (code.includes('START') || code.includes('COMP_START')) return !nodes.value.some((n) => isStartNode(n));
+  if (code.includes('END') || code.includes('COMP_END'))     return !nodes.value.some((n) => isEndNode(n));
   return true;
 };
 
-const showInputPort = (node) => node.type !== 'START';
-const showOutputPort = (node) => !props.readonly && node.type !== 'END';
+const showInputPort = (node) => !isStartNode(node);
+const showOutputPort = (node) => !props.readonly && !isEndNode(node);
 
 const normalizeStatusToNumber = (status) => {
   if (status === 1 || status === '1' || status === '启用' || status === true) return 1;
@@ -739,16 +801,20 @@ const loadPalette = async () => {
 
     componentPalette.value = comps.map((comp) => {
       const componentCode = comp.code || comp.componentCode;
-      const typeCode = String(comp.type || comp.componentType || '').toUpperCase();
+      // 组件类型直接使用组件管理页面的 componentType，如 "数据接入"/"数据处理"/"流程控制"
+      // 与 ComponentPage.vue 表格中"组件分类"列完全一致
+      const componentType = comp.type || comp.componentType || '';
       const componentName = comp.componentName || comp.name || comp.label || componentCode;
+      // category 与 componentType 在组件管理中自动同步，用作画布面板分组
+      const category = comp.category || componentType;
       return {
         id: comp.id,
-        type: typeCode,
-        label: componentName,
-        code: componentCode,
+        type: componentType,      // ← 组件分类（"数据接入"/"数据处理"/"流程控制"）
+        label: componentName,     // ← 组件名称（"数据过滤"/"脚本执行" 等）
+        code: componentCode,      // ← 组件编码（"COMP_FILTER" 等）
         componentId: comp.id,
-        groupCode: typeCode,
-        groupName: componentTypeNameMap[typeCode] || typeCode
+        groupCode: category,      // ← 分类编码
+        groupName: category       // ← 分类名称
       };
     }).filter((item) => item.type && item.label);
   } catch (_) {}
@@ -778,7 +844,7 @@ const onDrop = (event) => {
   if (!payload) return;
 
   const p = toStagePoint(event.clientX, event.clientY);
-  const nodeId = `n_${Date.now()}_${Math.floor(Math.random() * 9999)}`;
+  const nodeId = `n_${Date.now().toString(36)}_${Math.floor(Math.random() * 900000 + 100000)}`;
   const matched = componentPalette.value.find(item => item.type === payload.type && item.label === payload.label);
   const normalizedType = normalizeComponentType(payload.type, payload.code, payload.label);
   nodes.value.push({
@@ -874,9 +940,9 @@ const onCanvasMouseUp = (event) => {
 
   if (target) {
     const sourceNode = nodes.value.find((n) => n.id === edgeDragState.value.sourceNodeId);
-    if (sourceNode?.type === 'END') {
+    if (sourceNode && isEndNode(sourceNode)) {
       message.warning('结束组件不能作为连线起点');
-    } else if (target.type === 'START') {
+    } else if (isStartNode(target)) {
       message.warning('开始组件不能作为连线终点');
     } else {
       const exists = edges.value.some((e) => getEdgeNodeId(e, 'source') === edgeDragState.value.sourceNodeId && getEdgeNodeId(e, 'target') === target.id);
@@ -1073,6 +1139,8 @@ const buildPersistedDslPayload = () => ({
 
 const openNodeEditor = async (nodeId) => {
   selectedId.value = nodeId;
+  editingNodeId.value = nodeId;   // 同步 ID 到编辑状态
+  nodeIdError.value = '';         // 清空之前的校验错误
   nodeEditorTab.value = 'field';
   const node = nodes.value.find((item) => item.id === nodeId);
   if (!node) return;
@@ -1266,6 +1334,8 @@ const onNodeEditorCancel = () => {
     }));
   }
   nodeEditorVisible.value = false;
+  editingNodeId.value = '';    // 清理编辑状态
+  nodeIdError.value = '';      // 清理错误信息
 };
 
 const buildUpstreamTreeData = (nodeId) => {
