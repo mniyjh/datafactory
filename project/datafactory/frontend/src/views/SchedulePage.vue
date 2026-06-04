@@ -49,185 +49,199 @@
 
     <!-- 创建/编辑弹窗 -->
     <a-modal v-model:open="modalVisible" :title="editingId ? '编辑定时任务' : '新建定时任务'" @ok="handleSave"
-      @cancel="modalVisible = false" width="640px">
+      @cancel="modalVisible = false" width="1200px">
       <a-form :model="form" layout="vertical">
-        <!-- 基本信息 -->
-        <a-row :gutter="16">
-          <a-col :span="8">
-            <a-form-item label="定时任务编码" required>
-              <a-input v-model:value="form.jobCode" placeholder="唯一编码" :disabled="!!editingId" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
-            <a-form-item label="环境" required>
-              <a-select v-model:value="form.environment" @change="onEnvironmentChange">
-                <a-select-option value="TEST">TEST（测试环境）</a-select-option>
-                <a-select-option value="PROD">PROD（生产环境）</a-select-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
-            <a-form-item label="选择任务" required>
-              <a-select v-model:value="form.taskId" placeholder="请选择任务" show-search
-                :filter-option="filterTaskOption" @change="onTaskChange" :loading="taskLoading">
-                <a-select-option v-for="t in taskList" :key="t.id" :value="t.id">
-                  {{ t.taskName }} ({{ t.taskCode }})
-                </a-select-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-        </a-row>
+        <div class="modal-content">
+          <!-- 左侧：表单 -->
+          <div class="layout-left">
+            <div class="section-card">
+              <div class="section-title">基本信息</div>
 
-        <a-form-item label="选择版本" required>
-          <a-select v-model:value="form.taskVersionId" placeholder="请先选择任务和环境" :loading="versionLoading"
-            :disabled="!form.taskId || !form.environment" @change="loadIoParams">
-            <a-select-option v-for="v in versionList" :key="v.id" :value="v.id">
-              {{ v.version }} - {{ v.changeLog || '无变更说明' }}
-            </a-select-option>
-          </a-select>
-        </a-form-item>
+              <a-row :gutter="16">
+                <a-col :span="8">
+                  <a-form-item label="定时任务编码" required>
+                    <a-input v-model:value="form.jobCode" placeholder="唯一编码" :disabled="!!editingId" />
+                  </a-form-item>
+                </a-col>
+                <a-col :span="8">
+                  <a-form-item label="环境" required>
+                    <a-select v-model:value="form.environment" @change="onEnvironmentChange">
+                      <a-select-option value="TEST">TEST（测试环境）</a-select-option>
+                      <a-select-option value="PROD">PROD（生产环境）</a-select-option>
+                    </a-select>
+                  </a-form-item>
+                </a-col>
+                <a-col :span="8">
+                  <a-form-item label="选择任务" required>
+                    <a-select v-model:value="form.taskId" placeholder="请选择任务" show-search
+                      :filter-option="filterTaskOption" @change="onTaskChange" :loading="taskLoading">
+                      <a-select-option v-for="t in taskList" :key="t.id" :value="t.id">
+                        {{ t.taskName }} ({{ t.taskCode }})
+                      </a-select-option>
+                    </a-select>
+                  </a-form-item>
+                </a-col>
+              </a-row>
 
-        <!-- Cron 表达式 -->
-        <a-form-item label="Cron 表达式" required>
-          <a-input v-model:value="form.cronExpression" placeholder="0 0 2 * * ?">
-            <template #suffix>
-              <a-tooltip title="秒 分 时 日 月 周(6段)">
-                <span style="cursor:help;color:#999">?</span>
-              </a-tooltip>
-            </template>
-          </a-input>
-          <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
-            <a-tag v-for="p in cronPresets" :key="p.label" :color="form.cronExpression === p.value ? 'blue' : 'default'"
-              style="cursor:pointer" @click="form.cronExpression = p.value">
-              {{ p.label }}
-            </a-tag>
+              <a-form-item label="选择版本" required>
+                <a-select v-model:value="form.taskVersionId" placeholder="请先选择任务和环境" :loading="versionLoading"
+                  :disabled="!form.taskId || !form.environment" @change="loadIoParams">
+                  <a-select-option v-for="v in versionList" :key="v.id" :value="v.id">
+                    {{ v.version }} - {{ v.changeLog || '无变更说明' }}
+                  </a-select-option>
+                </a-select>
+              </a-form-item>
+
+              <a-form-item label="Cron 表达式" required>
+                <a-input v-model:value="form.cronExpression" placeholder="0 0 2 * * ?">
+                  <template #suffix>
+                    <a-tooltip title="秒 分 时 日 月 周(6段)">
+                      <span style="cursor:help;color:#999">?</span>
+                    </a-tooltip>
+                  </template>
+                </a-input>
+                <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+                  <a-tag v-for="p in cronPresets" :key="p.label" :color="form.cronExpression === p.value ? 'blue' : 'default'"
+                    style="cursor:pointer" @click="form.cronExpression = p.value">
+                    {{ p.label }}
+                  </a-tag>
+                </div>
+              </a-form-item>
+            </div>
+
+            <div class="section-card">
+              <div class="section-title">高级设置</div>
+
+              <a-row :gutter="16">
+                <a-col :span="8">
+                  <a-form-item label="失败重试次数">
+                    <a-input-number v-model:value="form.retryCount" :min="0" :max="10" style="width:100%" placeholder="0" />
+                  </a-form-item>
+                </a-col>
+                <a-col :span="8">
+                  <a-form-item label="重试间隔(秒)">
+                    <a-input-number v-model:value="form.retryInterval" :min="1" :max="3600" style="width:100%" placeholder="60" />
+                  </a-form-item>
+                </a-col>
+                <a-col :span="8">
+                  <a-form-item label="执行超时(秒, 0=不限)">
+                    <a-input-number v-model:value="form.executorTimeout" :min="0" :max="86400" style="width:100%" placeholder="0" />
+                  </a-form-item>
+                </a-col>
+              </a-row>
+
+              <a-row :gutter="16">
+                <a-col :span="8">
+                  <a-form-item label="并发策略">
+                    <a-select v-model:value="form.blockStrategy">
+                      <a-select-option value="SKIP">SKIP（跳过）</a-select-option>
+                      <a-select-option value="QUEUE">QUEUE（排队）</a-select-option>
+                      <a-select-option value="COVER">COVER（覆盖）</a-select-option>
+                    </a-select>
+                  </a-form-item>
+                </a-col>
+                <a-col :span="8">
+                  <a-form-item label="排队上限">
+                    <a-input-number v-model:value="form.maxQueueSize" :min="1" :max="100" style="width:100%"
+                      :disabled="form.blockStrategy !== 'QUEUE'" placeholder="5" />
+                  </a-form-item>
+                </a-col>
+                <a-col :span="8">
+                  <a-form-item label="错过触发策略">
+                    <a-select v-model:value="form.misfireStrategy">
+                      <a-select-option value="IGNORE">IGNORE（忽略）</a-select-option>
+                      <a-select-option value="FIRE_ONCE">FIRE_ONCE（触发一次）</a-select-option>
+                      <a-select-option value="FIRE_ALL">FIRE_ALL（追回所有）</a-select-option>
+                    </a-select>
+                  </a-form-item>
+                </a-col>
+              </a-row>
+
+              <a-row :gutter="16">
+                <a-col :span="8">
+                  <a-form-item label="时间窗口-开始">
+                    <a-time-picker v-model:value="form.windowStart" format="HH:mm:ss" placeholder="不限" style="width:100%" />
+                  </a-form-item>
+                </a-col>
+                <a-col :span="8">
+                  <a-form-item label="时间窗口-结束">
+                    <a-time-picker v-model:value="form.windowEnd" format="HH:mm:ss" placeholder="不限" style="width:100%" />
+                  </a-form-item>
+                </a-col>
+                <a-col :span="8">
+                  <a-form-item label="告警邮箱">
+                    <a-input v-model:value="form.alarmEmail" placeholder="多个逗号分隔" />
+                  </a-form-item>
+                </a-col>
+              </a-row>
+            </div>
           </div>
-        </a-form-item>
 
-        <!-- 高级设置 -->
-        <a-divider orientation="left" style="font-size:13px;">高级设置</a-divider>
-
-        <a-row :gutter="16">
-          <a-col :span="8">
-            <a-form-item label="失败重试次数">
-              <a-input-number v-model:value="form.retryCount" :min="0" :max="10" style="width:100%" placeholder="0" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
-            <a-form-item label="重试间隔(秒)">
-              <a-input-number v-model:value="form.retryInterval" :min="1" :max="3600" style="width:100%" placeholder="60" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
-            <a-form-item label="执行超时(秒, 0=不限)">
-              <a-input-number v-model:value="form.executorTimeout" :min="0" :max="86400" style="width:100%" placeholder="0" />
-            </a-form-item>
-          </a-col>
-        </a-row>
-
-        <a-row :gutter="16">
-          <a-col :span="8">
-            <a-form-item label="并发策略">
-              <a-select v-model:value="form.blockStrategy">
-                <a-select-option value="SKIP">SKIP（跳过）</a-select-option>
-                <a-select-option value="QUEUE">QUEUE（排队）</a-select-option>
-                <a-select-option value="COVER">COVER（覆盖）</a-select-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
-            <a-form-item label="排队上限">
-              <a-input-number v-model:value="form.maxQueueSize" :min="1" :max="100" style="width:100%"
-                :disabled="form.blockStrategy !== 'QUEUE'" placeholder="5" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
-            <a-form-item label="错过触发策略">
-              <a-select v-model:value="form.misfireStrategy">
-                <a-select-option value="IGNORE">IGNORE（忽略）</a-select-option>
-                <a-select-option value="FIRE_ONCE">FIRE_ONCE（触发一次）</a-select-option>
-                <a-select-option value="FIRE_ALL">FIRE_ALL（追回所有）</a-select-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-        </a-row>
-
-        <a-row :gutter="16">
-          <a-col :span="8">
-            <a-form-item label="时间窗口-开始">
-              <a-time-picker v-model:value="form.windowStart" format="HH:mm:ss" placeholder="不限" style="width:100%" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
-            <a-form-item label="时间窗口-结束">
-              <a-time-picker v-model:value="form.windowEnd" format="HH:mm:ss" placeholder="不限" style="width:100%" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
-            <a-form-item label="告警邮箱">
-              <a-input v-model:value="form.alarmEmail" placeholder="多个逗号分隔" />
-            </a-form-item>
-          </a-col>
-        </a-row>
-        <!-- 参数配置 -->
-        <template v-if="form.taskVersionId">
-          <a-divider orientation="left" style="font-size:13px;">参数配置</a-divider>
-          <a-spin :spinning="paramsLoading">
-            <template v-if="groupedIoParams.length === 0 && !paramsLoading">
-              <a-empty description="该版本暂无参数配置" style="margin: 12px 0;" />
-            </template>
-            <a-collapse v-else accordion>
-              <a-collapse-panel
-                v-for="group in groupedIoParams"
-                :key="group.nodeId"
-                :header="`节点: ${group.nodeName} (${group.nodeId})`"
-              >
-                <template v-if="group.inputParams.length > 0">
-                  <div style="font-weight:600;margin:8px 0 4px;color:#1677ff;">输入参数</div>
-                  <a-table
-                    :columns="ioParamTableColumns"
-                    :data-source="group.inputParams"
-                    :pagination="false"
-                    row-key="paramCode"
-                    size="small"
-                    :scroll="{ x: 'max-content' }"
-                  >
-                    <template #bodyCell="{ column, record }">
-                      <template v-if="column.dataIndex === 'paramValue'">
-                        <a-input
-                          v-model:value="paramsConfig[record.nodeId + '|' + record.ioType + '|' + record.paramCode]"
-                          :placeholder="'请输入' + (record.paramName || record.paramCode)"
-                          size="small"
-                        />
-                      </template>
-                    </template>
-                  </a-table>
+          <!-- 右侧：参数配置 -->
+          <div class="layout-right">
+            <div class="section-card" v-if="form.taskVersionId">
+              <div class="section-title">参数配置</div>
+              <a-spin :spinning="paramsLoading">
+                <template v-if="groupedIoParams.length === 0 && !paramsLoading">
+                  <a-empty description="该版本暂无参数配置" />
                 </template>
-                <template v-if="group.outputParams.length > 0">
-                  <div style="font-weight:600;margin:12px 0 4px;color:#52c41a;">输出参数</div>
-                  <a-table
-                    :columns="ioParamTableColumns"
-                    :data-source="group.outputParams"
-                    :pagination="false"
-                    row-key="paramCode"
-                    size="small"
-                    :scroll="{ x: 'max-content' }"
+                <a-collapse v-else accordion>
+                  <a-collapse-panel
+                    v-for="group in groupedIoParams"
+                    :key="group.nodeId"
+                    :header="`节点: ${group.nodeName} (${group.nodeId})`"
                   >
-                    <template #bodyCell="{ column, record }">
-                      <template v-if="column.dataIndex === 'paramValue'">
-                        <a-input
-                          v-model:value="paramsConfig[record.nodeId + '|' + record.ioType + '|' + record.paramCode]"
-                          :placeholder="'请输入' + (record.paramName || record.paramCode)"
-                          size="small"
-                        />
-                      </template>
+                    <template v-if="group.inputParams.length > 0">
+                      <div style="font-weight:600;margin:8px 0 4px;color:#1677ff;">输入参数</div>
+                      <a-table
+                        :columns="ioParamTableColumns"
+                        :data-source="group.inputParams"
+                        :pagination="false"
+                        row-key="paramCode"
+                        size="small"
+                        :scroll="{ x: 'max-content' }"
+                      >
+                        <template #bodyCell="{ column, record }">
+                          <template v-if="column.dataIndex === 'paramValue'">
+                            <a-input
+                              v-model:value="paramsConfig[record.nodeId + '|' + record.ioType + '|' + record.paramCode]"
+                              :placeholder="'请输入' + (record.paramName || record.paramCode)"
+                              size="small"
+                            />
+                          </template>
+                        </template>
+                      </a-table>
                     </template>
-                  </a-table>
-                </template>
-              </a-collapse-panel>
-            </a-collapse>
-          </a-spin>
-        </template>
+                    <template v-if="group.outputParams.length > 0">
+                      <div style="font-weight:600;margin:12px 0 4px;color:#52c41a;">输出参数</div>
+                      <a-table
+                        :columns="ioParamTableColumns"
+                        :data-source="group.outputParams"
+                        :pagination="false"
+                        row-key="paramCode"
+                        size="small"
+                        :scroll="{ x: 'max-content' }"
+                      >
+                        <template #bodyCell="{ column, record }">
+                          <template v-if="column.dataIndex === 'paramValue'">
+                            <a-input
+                              v-model:value="paramsConfig[record.nodeId + '|' + record.ioType + '|' + record.paramCode]"
+                              :placeholder="'请输入' + (record.paramName || record.paramCode)"
+                              size="small"
+                            />
+                          </template>
+                        </template>
+                      </a-table>
+                    </template>
+                  </a-collapse-panel>
+                </a-collapse>
+              </a-spin>
+            </div>
+            <div class="empty-placeholder" v-else>
+              <a-empty description="请先选择任务版本以配置参数" />
+            </div>
+          </div>
+        </div>
       </a-form>
     </a-modal>
 
@@ -598,4 +612,48 @@ onMounted(fetchJobs);
   margin-bottom: 16px;
 }
 .page-header h3 { margin: 0; }
+
+.modal-content {
+  display: flex;
+  gap: 20px;
+  height: 70vh;
+  overflow: hidden;
+}
+.layout-left {
+  flex: 1;
+  min-width: 380px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.layout-right {
+  flex: 1;
+  min-width: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.section-card {
+  background: #fbfbfb;
+  padding: 16px;
+  border-radius: 4px;
+  border: 1px solid #f0f0f0;
+  margin-bottom: 12px;
+}
+.section-title {
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 16px;
+  border-left: 4px solid #1890ff;
+  padding-left: 10px;
+  line-height: 1;
+}
+.empty-placeholder {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
+  border: 1px dashed #d9d9d9;
+  border-radius: 4px;
+  min-height: 200px;
+}
 </style>
