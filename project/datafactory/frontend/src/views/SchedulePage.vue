@@ -50,7 +50,7 @@
     <!-- 创建/编辑弹窗 -->
     <a-modal v-model:open="modalVisible" :title="editingId ? '编辑定时任务' : '新建定时任务'" @ok="handleSave"
       @cancel="modalVisible = false" width="1200px">
-      <a-form :model="form" layout="vertical">
+      <a-form ref="formRef" :model="form" :rules="formRules" layout="vertical">
         <div class="modal-content">
           <!-- 左侧：表单 -->
           <div class="layout-left">
@@ -275,6 +275,18 @@ import { scheduleApi } from '../api/scheduleApi';
 import { taskApi } from '../api/task';
 
 const router = useRouter();
+
+const formRef = ref();
+const formRules = {
+  jobCode: [{ required: true, message: '请输入定时任务编码', trigger: 'blur' }],
+  environment: [{ required: true, message: '请选择环境', trigger: 'change' }],
+  taskId: [{ required: true, message: '请选择任务', trigger: 'change' }],
+  taskVersionId: [{ required: true, message: '请选择版本', trigger: 'change' }],
+  cronExpression: [
+    { required: true, message: '请输入Cron表达式', trigger: 'blur' },
+    { pattern: /^[0-9*,/\-?A-Za-z]+\s[0-9*,/\-?A-Za-z]+\s[0-9*,/\-?A-Za-z]+\s[0-9*,/\-?A-Za-z]+\s[0-9*,/\-?A-Za-z]+\s[0-9*,/\-?A-Za-z#]+$/, message: 'Cron表达式格式不正确(6段)', trigger: 'blur' }
+  ]
+};
 
 const loading = ref(false);
 const jobs = ref([]);
@@ -506,6 +518,11 @@ const editJob = async (record) => {
 };
 
 const handleSave = async () => {
+  try {
+    await formRef.value.validate();
+  } catch (e) {
+    return;
+  }
   try {
     // 处理时间选择器返回的 dayjs 对象
     const payload = { ...form.value };
