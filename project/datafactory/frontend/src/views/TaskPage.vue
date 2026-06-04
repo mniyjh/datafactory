@@ -43,7 +43,7 @@
     </a-modal>
 
     <a-modal v-model:open="formVisible" :title="isEdit ? '编辑任务' : '新建任务'" :width="760" :footer="null" destroyOnClose>
-      <a-form :model="formState" :label-col="{ style: { width: '130px' } }" class="task-form">
+      <a-form ref="formRef" :model="formState" :rules="formRules" :label-col="{ style: { width: '130px' } }" class="task-form">
         <a-form-item label="任务编码" required>
           <a-input v-model:value="formState.taskCode" :disabled="isEdit" placeholder="请输入任务编码" />
         </a-form-item>
@@ -139,6 +139,11 @@ const currentTaskId = ref(null);
 const envRows = ref([]);
 const selectedVersionId = ref(null);
 const formVisible = ref(false);
+const formRef = ref();
+const formRules = {
+  taskCode: [{ required: true, message: '请输入任务编码', trigger: 'blur' }],
+  taskName: [{ required: true, message: '请输入任务名称', trigger: 'blur' }]
+};
 const detailVisible = ref(false);
 const envVisible = ref(false);
 const isEdit = ref(false);
@@ -281,6 +286,11 @@ const openDetail = async (row) => {
 };
 
 const submitForm = async () => {
+  try {
+    await formRef.value.validate();
+  } catch (e) {
+    return;
+  }
   try {
     if (isEdit.value) {
       await taskApi.update({ id: editingId.value, ...formState });
