@@ -182,59 +182,44 @@
             <div class="section-card" v-if="form.taskVersionId">
               <div class="section-title">参数配置</div>
               <a-spin :spinning="paramsLoading">
-                <template v-if="groupedIoParams.length === 0 && !paramsLoading">
+                <template v-if="ioParamsList.length === 0 && !paramsLoading">
                   <a-empty description="该版本暂无参数配置" />
                 </template>
-                <a-collapse v-else accordion>
-                  <a-collapse-panel
-                    v-for="group in groupedIoParams"
-                    :key="group.nodeId"
-                    :header="`节点: ${group.nodeName} (${group.nodeId})`"
-                  >
-                    <template v-if="group.inputParams.length > 0">
-                      <div style="font-weight:600;margin:8px 0 4px;color:#1677ff;">输入参数</div>
-                      <a-table
-                        :columns="ioParamTableColumns"
-                        :data-source="group.inputParams"
-                        :pagination="false"
-                        row-key="paramCode"
-                        size="small"
-                        :scroll="{ x: 'max-content' }"
-                      >
-                        <template #bodyCell="{ column, record }">
-                          <template v-if="column.dataIndex === 'paramValue'">
-                            <a-input
-                              v-model:value="paramsConfig[record.nodeId + '|' + record.ioType + '|' + record.paramCode]"
-                              :placeholder="'请输入' + (record.paramName || record.paramCode)"
-                              size="small"
-                            />
-                          </template>
-                        </template>
-                      </a-table>
+                <a-table
+                  v-else
+                  :columns="ioParamTableColumns"
+                  :data-source="ioParamsList"
+                  :pagination="false"
+                  size="small"
+                  bordered
+                  row-key="id"
+                  :scroll="{ x: 'max-content', y: 'calc(70vh - 100px)' }"
+                >
+                  <template #bodyCell="{ column, record }">
+                    <template v-if="column.dataIndex === 'ioType'">
+                      <a-tag :color="record.ioType === 'INPUT' ? 'processing' : 'success'">
+                        {{ record.ioType === 'INPUT' ? '输入参数' : '输出参数' }}
+                      </a-tag>
                     </template>
-                    <template v-if="group.outputParams.length > 0">
-                      <div style="font-weight:600;margin:12px 0 4px;color:#52c41a;">输出参数</div>
-                      <a-table
-                        :columns="ioParamTableColumns"
-                        :data-source="group.outputParams"
-                        :pagination="false"
-                        row-key="paramCode"
-                        size="small"
-                        :scroll="{ x: 'max-content' }"
-                      >
-                        <template #bodyCell="{ column, record }">
-                          <template v-if="column.dataIndex === 'paramValue'">
-                            <a-input
-                              v-model:value="paramsConfig[record.nodeId + '|' + record.ioType + '|' + record.paramCode]"
-                              :placeholder="'请输入' + (record.paramName || record.paramCode)"
-                              size="small"
-                            />
-                          </template>
-                        </template>
-                      </a-table>
+                    <template v-else-if="column.dataIndex === 'requiredFlag'">
+                      <a-tag :color="Number(record.requiredFlag || 0) === 1 ? 'error' : 'default'">
+                        {{ Number(record.requiredFlag || 0) === 1 ? '必填' : '可选' }}
+                      </a-tag>
                     </template>
-                  </a-collapse-panel>
-                </a-collapse>
+                    <template v-else-if="column.dataIndex === 'sourceValue'">
+                      <span>{{ formatSourceDisplay(record.sourceValue) }}</span>
+                    </template>
+                    <template v-else-if="column.dataIndex === 'paramValue'">
+                      <a-input
+                        v-if="record.ioType === 'INPUT'"
+                        v-model:value="paramsConfig[record.id]"
+                        :placeholder="record.paramName || record.paramCode"
+                        size="small"
+                      />
+                      <span v-else>{{ syncedOutputValue(record) }}</span>
+                    </template>
+                  </template>
+                </a-table>
               </a-spin>
             </div>
             <div class="empty-placeholder" v-else>
@@ -273,6 +258,7 @@ import { useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
 import { scheduleApi } from '../api/scheduleApi';
 import { taskApi } from '../api/task';
+import { componentApi } from '../api/componentApi';
 
 const router = useRouter();
 
@@ -353,10 +339,14 @@ const columns = [
 ];
 
 const ioParamTableColumns = [
-  { title: '参数编码', dataIndex: 'paramCode', width: 160 },
-  { title: '参数名称', dataIndex: 'paramName', width: 140 },
-  { title: '数据类型', dataIndex: 'dataType', width: 100 },
-  { title: '参数值', dataIndex: 'paramValue', width: 240 }
+  { title: '组件ID', dataIndex: 'nodeId', width: 120 },
+  { title: '组件名称', dataIndex: 'nodeName', width: 100 },
+  { title: '参数分类', dataIndex: 'ioType', width: 80 },
+  { title: '参数编码', dataIndex: 'paramCode', width: 140 },
+  { title: '参数名称', dataIndex: 'paramName', width: 120 },
+  { title: '数据类型', dataIndex: 'dataType', width: 80 },
+  { title: '来源值', dataIndex: 'sourceValue', width: 120 },
+  { title: '参数值', dataIndex: 'paramValue', width: 180 }
 ];
 
 // 展开行显示详细信息
@@ -378,21 +368,6 @@ const expandedRowRender = (record) => {
 const blockLabel = (s) => ({ SKIP: '跳过', QUEUE: '排队', COVER: '覆盖' }[s] || s || 'SKIP');
 const blockColor = (s) => ({ SKIP: 'blue', QUEUE: 'orange', COVER: 'red' }[s] || 'blue');
 
-const groupedIoParams = computed(() => {
-  const groups = {};
-  ioParamsList.value.forEach(param => {
-    const key = param.nodeId;
-    if (!groups[key]) {
-      groups[key] = { nodeId: key, nodeName: param.nodeName, inputParams: [], outputParams: [] };
-    }
-    if (param.ioType === 'INPUT') {
-      groups[key].inputParams.push(param);
-    } else {
-      groups[key].outputParams.push(param);
-    }
-  });
-  return Object.values(groups);
-});
 
 const fetchJobs = async () => {
   loading.value = true;
@@ -454,23 +429,125 @@ const loadVersionList = async () => {
   }
 };
 
+const extractNodeIoParams = (node) => {
+  const inputParams = Array.isArray(node?.inputParams)
+    ? node.inputParams.map(p => ({ ...p, ioType: 'INPUT' }))
+    : [];
+  const outputParams = Array.isArray(node?.outputParams)
+    ? node.outputParams.map(p => ({ ...p, ioType: 'OUTPUT' }))
+    : [];
+  if (inputParams.length > 0 || outputParams.length > 0) {
+    return [...inputParams, ...outputParams];
+  }
+  return [];
+};
+
+const isStartOrEndByNode = (node) => {
+  if (!node) return false;
+  return node.type === 'START' || node.type === 'END' ||
+    String(node.componentCode || '').toUpperCase().includes('START') ||
+    String(node.componentCode || '').toUpperCase().includes('END');
+};
+
 const loadIoParams = async () => {
   if (!form.value.taskVersionId) return;
   paramsLoading.value = true;
   ioParamsList.value = [];
   try {
-    const res = await scheduleApi.fetchVersionIoParams(form.value.taskVersionId);
-    const allParams = res.data?.data || [];
-    ioParamsList.value = allParams;
+    // Find the selected version from versionList
+    const selectedVersion = versionList.value.find(v => v.id === form.value.taskVersionId);
+    if (!selectedVersion || !selectedVersion.dslContent) {
+      paramsLoading.value = false;
+      return;
+    }
+
+    // Parse DSL
+    const dsl = typeof selectedVersion.dslContent === 'string'
+      ? JSON.parse(selectedVersion.dslContent)
+      : selectedVersion.dslContent;
+    const nodes = dsl.nodes || [];
+
+    // Fetch component metadata for richer param info
+    const componentIds = [...new Set(nodes.map(n => n.componentId).filter(Boolean))];
+    const metaMap = new Map();
+    await Promise.all(componentIds.map(async (cid) => {
+      try {
+        const res = await componentApi.getMeta(cid);
+        metaMap.set(cid, res.data?.data || null);
+      } catch (e) {
+        metaMap.set(cid, null);
+      }
+    }));
+
+    // Process nodes - extract all IO params
+    const rows = [];
+    nodes.forEach(node => {
+      // START/END: sync output params from input params
+      if (isStartOrEndByNode(node)) {
+        const inputs = Array.isArray(node.inputParams) ? node.inputParams : [];
+        node.outputParams = inputs.map(item => ({
+          paramCode: item.paramCode,
+          paramName: item.paramName,
+          dataType: item.dataType,
+          requiredFlag: item.requiredFlag || 0,
+          sourceType: item.sourceType || 'CONST',
+          sourceValue: typeof item.sourceValue === 'string' ? item.sourceValue : (item.sourceValue ? JSON.stringify(item.sourceValue) : ''),
+          defaultValue: typeof item.sourceValue === 'string' ? item.sourceValue : ''
+        }));
+      }
+
+      const nodeParams = extractNodeIoParams(node);
+      const meta = node.componentId ? metaMap.get(node.componentId) : null;
+      const metaParams = [
+        ...(meta?.inputParams || []).map(p => ({ ...p, ioType: 'INPUT' })),
+        ...(meta?.outputParams || []).map(p => ({ ...p, ioType: 'OUTPUT' }))
+      ];
+
+      // Merge: meta params first, node params override
+      const byKey = new Map();
+      [...metaParams, ...nodeParams].forEach((p, idx) => {
+        const t = String(p.ioType || p.paramType || 'INPUT').toUpperCase();
+        const k = `${t}::${p.paramCode || p.paramName || p.name || idx}`;
+        byKey.set(k, { ...(byKey.get(k) || {}), ...p, ioType: t });
+      });
+
+      Array.from(byKey.values()).forEach((param, idx) => {
+        const upperType = String(param.ioType || 'INPUT').toUpperCase();
+        const key = param.paramCode || param.name || `${upperType === 'OUTPUT' ? 'output' : 'param'}_${idx + 1}`;
+        rows.push({
+          id: `${node.id}_${upperType}_${key}_${idx}`,
+          ioType: upperType,
+          paramCode: key,
+          paramName: param.paramName || param.name || key,
+          description: param.description || '',
+          dataType: param.dataType || param.type || 'STRING',
+          sourceType: param.sourceType || 'CONST',
+          sourceValue: param.sourceValue ?? param.defaultValue ?? '',
+          requiredFlag: Number(param.requiredFlag || 0),
+          nodeId: node.id,
+          nodeName: node.name || node.id,
+          nodeType: node.type || '',
+          componentCode: node.componentCode || ''
+        });
+      });
+    });
+
+    ioParamsList.value = rows;
+
+    // Restore saved param values when editing
     if (editingId.value && form.value.paramsConfig) {
       try {
         const saved = typeof form.value.paramsConfig === 'string'
           ? JSON.parse(form.value.paramsConfig) : form.value.paramsConfig;
-        const conf = saved?.params || saved?.paramsConfig || saved;
+        const conf = saved?.params || saved || {};
         if (Array.isArray(conf)) {
+          paramsConfig.value = {};
           conf.forEach(p => {
-            if (p.paramValue) {
-              paramsConfig.value[p.nodeId + '|' + p.ioType + '|' + p.paramCode] = p.paramValue;
+            const match = rows.find(r =>
+              r.nodeId === p.nodeId && r.ioType === p.ioType && r.paramCode === p.paramCode
+            );
+            if (match) {
+              paramsConfig.value[match.id] = p.paramValue;
             }
           });
         }
@@ -486,6 +563,26 @@ const loadIoParams = async () => {
   } finally {
     paramsLoading.value = false;
   }
+};
+
+const formatSourceDisplay = (val) => {
+  if (val === undefined || val === null || val === '') return '-';
+  if (typeof val === 'object') return JSON.stringify(val);
+  return String(val);
+};
+
+const syncedOutputValue = (record) => {
+  if (record.ioType !== 'OUTPUT') return formatSourceDisplay(record.sourceValue);
+  // For START/END nodes, output value syncs from corresponding input param's test value
+  if (isStartOrEndByNode({ type: record.nodeType, componentCode: record.componentCode })) {
+    const inputMatch = ioParamsList.value.find(
+      p => p.ioType === 'INPUT' && p.nodeId === record.nodeId && p.paramCode === record.paramCode
+    );
+    if (inputMatch && paramsConfig.value[inputMatch.id]) {
+      return String(paramsConfig.value[inputMatch.id]);
+    }
+  }
+  return formatSourceDisplay(record.sourceValue);
 };
 
 const showCreateModal = () => {
@@ -535,8 +632,7 @@ const handleSave = async () => {
     // 序列化参数配置
     const filledParams = ioParamsList.value
       .filter(p => {
-        const key = p.nodeId + '|' + p.ioType + '|' + p.paramCode;
-        const val = paramsConfig.value[key];
+        const val = paramsConfig.value[p.id];
         return val !== undefined && val !== null && val !== '';
       })
       .map(p => ({
@@ -546,7 +642,7 @@ const handleSave = async () => {
         paramCode: p.paramCode,
         paramName: p.paramName,
         dataType: p.dataType,
-        paramValue: paramsConfig.value[p.nodeId + '|' + p.ioType + '|' + p.paramCode]
+        paramValue: paramsConfig.value[p.id]
       }));
     payload.paramsConfig = filledParams.length > 0 ? JSON.stringify({ params: filledParams }) : null;
     if (editingId.value) {
