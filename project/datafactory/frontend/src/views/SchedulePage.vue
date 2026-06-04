@@ -212,7 +212,7 @@
                     </a-tag>
                   </template>
                   <template v-else-if="column.dataIndex === 'sourceType'">
-                    <a-tag>{{ record.sourceType || 'CONST' }}</a-tag>
+                    <a-tag>{{ sourceTypeLabel(record.sourceType) }}</a-tag>
                   </template>
                   <template v-else-if="column.dataIndex === 'sourceValue'">
                     <a-input
@@ -221,7 +221,7 @@
                       :placeholder="formatSourceDisplay(record.sourceValue)"
                       size="small"
                     />
-                    <span v-else>{{ syncedOutputValue(record) }}</span>
+                    <span v-else>{{ formatSourceDisplay(record.sourceValue) }}</span>
                   </template>
                 </template>
               </a-table>
@@ -587,23 +587,13 @@ const onFlowNodeClick = (node) => {
   selectedFlowNode.value = node;
 };
 
+const sourceTypeLabels = { CONST: '常量', UPSTREAM_OUTPUT: '上游输出', EXPRESSION: '表达式' };
+const sourceTypeLabel = (t) => sourceTypeLabels[t] || t || '-';
+
 const formatSourceDisplay = (val) => {
   if (val === undefined || val === null || val === '') return '-';
   if (typeof val === 'object') return JSON.stringify(val);
   return String(val);
-};
-
-const syncedOutputValue = (record) => {
-  if (record.ioType !== 'OUTPUT') return formatSourceDisplay(record.sourceValue);
-  if (isStartOrEndByNode({ type: record.nodeType, componentCode: record.componentCode })) {
-    const inputMatch = ioParamsList.value.find(
-      p => p.ioType === 'INPUT' && p.nodeId === record.nodeId && p.paramCode === record.paramCode
-    );
-    if (inputMatch && paramsConfig.value[inputMatch.id]) {
-      return String(paramsConfig.value[inputMatch.id]);
-    }
-  }
-  return formatSourceDisplay(record.sourceValue);
 };
 
 const showCreateModal = () => {

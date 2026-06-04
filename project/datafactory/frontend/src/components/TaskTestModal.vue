@@ -60,7 +60,7 @@
                   </a-tag>
                 </template>
                 <template v-else-if="column.dataIndex === 'sourceType'">
-                  <span>{{ sourceTypeLabel(record.sourceType) }}</span>
+                  <a-tag>{{ sourceTypeLabel(record.sourceType) }}</a-tag>
                 </template>
                 <template v-else-if="column.dataIndex === 'sourceValue'">
                   <a-input
@@ -69,7 +69,7 @@
                     :placeholder="formatDisplayValue(record.sourceValue)"
                     size="small"
                   />
-                  <span v-else>{{ syncedOrSourceValue(record) }}</span>
+                  <span v-else>{{ formatDisplayValue(record.sourceValue) }}</span>
                 </template>
               </template>
             </a-table>
@@ -414,21 +414,6 @@ const isStartOrEndType = (nodeType, componentCode) => {
   return nodeType === 'START' || nodeType === 'END' ||
     String(componentCode || '').toUpperCase().includes('START') ||
     String(componentCode || '').toUpperCase().includes('END');
-};
-const syncedOrSourceValue = (record) => {
-  if (record.ioType !== 'OUTPUT') return formatDisplayValue(record.sourceValue);
-  // 非 START/END 节点直接展示原始值
-  if (!isStartOrEndType(record.nodeType, record.componentCode)) {
-    return formatDisplayValue(record.sourceValue);
-  }
-  // START/END 节点输出值从对应输入参数的测试值联动
-  const inputMatch = ioParamList.value.find(
-    p => p.ioType === 'INPUT' && p.nodeId === record.nodeId && p.paramCode === record.paramCode
-  );
-  if (inputMatch && (inputMatch.testValue !== undefined && inputMatch.testValue !== null && inputMatch.testValue !== '')) {
-    return String(inputMatch.testValue);
-  }
-  return formatDisplayValue(record.sourceValue);
 };
 
 
