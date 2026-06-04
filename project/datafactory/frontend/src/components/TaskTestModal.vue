@@ -156,17 +156,13 @@ const filteredIoParams = computed(() => {
 });
 
 const ioColumns = [
-  { title: '组件ID', dataIndex: 'nodeId', width: 180 },
-  { title: '组件名称', dataIndex: 'nodeName', width: 180 },
-  { title: '组件类型', dataIndex: 'nodeType', width: 130 },
-  { title: '参数分类', dataIndex: 'ioType', width: 100 },
-  { title: '参数编码', dataIndex: 'paramCode', width: 220 },
-  { title: '参数名称', dataIndex: 'paramName', width: 200 },
-  { title: '数据类型', dataIndex: 'dataType', width: 120 },
-  { title: '参数来源', dataIndex: 'sourceType', width: 160 },
-  { title: '来源值/测试值', dataIndex: 'sourceValue', width: 300 },
-  { title: '必填', dataIndex: 'requiredFlag', width: 90 },
-  { title: '描述', dataIndex: 'description', width: 220 }
+  { title: '分类', dataIndex: 'ioType', width: 80 },
+  { title: '参数编码', dataIndex: 'paramCode', width: 160 },
+  { title: '参数名称', dataIndex: 'paramName', width: 140 },
+  { title: '数据类型', dataIndex: 'dataType', width: 90 },
+  { title: '参数来源', dataIndex: 'sourceType', width: 100 },
+  { title: '来源值/测试值', dataIndex: 'sourceValue', width: 240 },
+  { title: '必填', dataIndex: 'requiredFlag', width: 70 }
 ];
 
 // 自动加载逻辑
