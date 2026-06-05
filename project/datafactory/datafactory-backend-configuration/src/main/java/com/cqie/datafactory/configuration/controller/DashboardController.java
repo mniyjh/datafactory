@@ -5,12 +5,14 @@ import com.cqie.datafactory.configuration.controller.vo.DashboardVO;
 import com.cqie.datafactory.configuration.service.DatasourceDbService;
 import com.cqie.datafactory.configuration.service.ExternalApiService;
 import com.cqie.datafactory.configuration.service.ScriptService;
-import com.cqie.datafactory.configuration.service.OpenApiService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Slf4j
 @RestController
 @RequestMapping("/dashboard")
 public class DashboardController {
@@ -25,7 +27,7 @@ public class DashboardController {
     private ScriptService scriptService;
 
     @Autowired
-    private OpenApiService openApiService;
+    private JdbcTemplate jdbcTemplate;
 
     @GetMapping("/stats")
     public Result<DashboardVO> getStats() {
@@ -33,7 +35,7 @@ public class DashboardController {
         vo.setDbCount(dbService.count());
         vo.setApiCount(externalApiService.count());
         vo.setScriptCount(scriptService.count());
-        vo.setTaskCount(openApiService.count());
+        vo.setTaskCount(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM task", Long.class));
         return Result.success(vo);
     }
 }

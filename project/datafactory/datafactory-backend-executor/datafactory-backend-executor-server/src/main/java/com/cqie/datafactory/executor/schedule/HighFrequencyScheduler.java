@@ -2,6 +2,7 @@ package com.cqie.datafactory.executor.schedule;
 
 import com.cqie.datafactory.executor.schedule.config.HighFrequencySchedulerProperties;
 import com.cqie.datafactory.executor.schedule.entity.ScheduleJob;
+import com.cqie.datafactory.executor.schedule.entity.ScheduleJobTask;
 import com.cqie.datafactory.executor.schedule.event.JobFailureEvent;
 import com.cqie.datafactory.executor.schedule.guard.ExecutionGuard;
 import com.cqie.datafactory.executor.schedule.util.CronHelper;
@@ -185,44 +186,61 @@ public class HighFrequencyScheduler {
     }
 
     private void fireHfWithSkip(ScheduleJob job) {
-        if (!executionGuard.tryAcquire(job.getTaskId())) return;
-        try {
-            executeHfWithRetry(job);
-        } finally {
-            executionGuard.release(job.getTaskId());
+        scheduleJobService.loadJobTasks(job);
+        List<ScheduleJobTask> tasks = job.getJobTasks();
+        if (tasks == null || tasks.isEmpty()) return;
+        for (ScheduleJobTask link : tasks) {
+            String lockKey = job.getId() + ":" + link.getTaskId() + ":" + link.getTaskVersionId();
+            if (!executionGuard.tryAcquire(lockKey)) continue;
+            try {
+                executeHfSingleWithRetry(job, link);
+            } finally {
+                executionGuard.release(lockKey);
+            }
         }
     }
 
     private void fireHfWithQueue(ScheduleJob job) {
-        if (!executionGuard.tryAcquire(job.getTaskId())) {
-            int maxSize = job.getMaxQueueSize() != null ? job.getMaxQueueSize() : 5;
-            taskExecutionQueue.enqueue(job, maxSize);
-            return;
-        }
-        try {
-            executeHfWithRetry(job);
-            // 执行排队任务
-            ScheduleJob queued = taskExecutionQueue.dequeue(job.getId());
-            while (queued != null) {
-                fireHfWithSkip(queued);
-                queued = taskExecutionQueue.dequeue(job.getId());
+        scheduleJobService.loadJobTasks(job);
+        List<ScheduleJobTask> tasks = job.getJobTasks();
+        if (tasks == null || tasks.isEmpty()) return;
+        for (ScheduleJobTask link : tasks) {
+            String lockKey = job.getId() + ":" + link.getTaskId() + ":" + link.getTaskVersionId();
+            if (!executionGuard.tryAcquire(lockKey)) {
+                int maxSize = job.getMaxQueueSize() != null ? job.getMaxQueueSize() : 5;
+                taskExecutionQueue.enqueue(job, maxSize);
+                continue;
             }
-        } finally {
-            executionGuard.release(job.getTaskId());
+            try {
+                executeHfSingleWithRetry(job, link);
+                ScheduleJob queued = taskExecutionQueue.dequeue(job.getId());
+                while (queued != null) {
+                    fireHfWithSkip(queued);
+                    queued = taskExecutionQueue.dequeue(job.getId());
+                }
+            } finally {
+                executionGuard.release(lockKey);
+            }
         }
     }
 
     private void fireHfWithCover(ScheduleJob job) {
-        executionGuard.forceRelease(job.getTaskId());
-        executionGuard.tryAcquire(job.getTaskId());
-        try {
-            executeHfWithRetry(job);
-        } finally {
-            executionGuard.release(job.getTaskId());
+        scheduleJobService.loadJobTasks(job);
+        List<ScheduleJobTask> tasks = job.getJobTasks();
+        if (tasks == null || tasks.isEmpty()) return;
+        for (ScheduleJobTask link : tasks) {
+            String lockKey = job.getId() + ":" + link.getTaskId() + ":" + link.getTaskVersionId();
+            executionGuard.forceRelease(lockKey);
+            executionGuard.tryAcquire(lockKey);
+            try {
+                executeHfSingleWithRetry(job, link);
+            } finally {
+                executionGuard.release(lockKey);
+            }
         }
     }
 
-    private void executeHfWithRetry(ScheduleJob job) {
+    private void executeHfSingleWithRetry(ScheduleJob job, ScheduleJobTask link) {
         int lockSec = computeLockSeconds(job);
         if (!distributedLock.tryLock(job.getId(), lockSec)) return;
 
@@ -238,7 +256,7 @@ public class HighFrequencyScheduler {
                         if (latest == null || latest.getStatus() == null || latest.getStatus() != 1) return;
                         Thread.sleep(retryInterval * 1000L);
                     }
-                    doHfFire(job, attempt);
+                    doHfFireTask(job, link, attempt);
                     job.setCurrentRetry(0);
                     return;
                 } catch (InterruptedException e) {
@@ -248,33 +266,33 @@ public class HighFrequencyScheduler {
                     lastException = e;
                     job.setCurrentRetry(attempt + 1);
                     scheduleJobService.updateFireResult(job);
-                    log.warn("HF任务执行失败，第{}/{}次重试: jobId={}", attempt + 1, maxRetries, job.getId());
+                    log.warn("HF任务执行失败，第{}/{}次重试: jobId={}, taskId={}", attempt + 1, maxRetries, job.getId(), link.getTaskId());
                 }
             }
 
-            log.error("HF任务最终失败: jobId={}, 已重试{}次", job.getId(), maxRetries);
+            log.error("HF任务最终失败: jobId={}, taskId={}, 已重试{}次", job.getId(), link.getTaskId(), maxRetries);
             eventPublisher.publishEvent(new JobFailureEvent(
-                    job.getId(), job.getTaskId(),
-                    "task-" + job.getTaskId(),
+                    job.getId(), link.getTaskId(),
+                    "task-" + link.getTaskId(),
                     job.getLastExecutionId(),
                     lastException != null ? lastException.getMessage() : "unknown",
                     job.getEnvironment(), LocalDateTime.now()));
-
         } finally {
             distributedLock.release(job.getId());
         }
     }
 
-    private void doHfFire(ScheduleJob job, int attempt) {
+    private void doHfFireTask(ScheduleJob job, ScheduleJobTask link, int attempt) {
         Map<String, Object> params = new HashMap<>();
-        params.put("versionId", job.getTaskVersionId());
+        params.put("versionId", link.getTaskVersionId());
         if (attempt > 0) {
             params.put("retryAttempt", attempt);
         }
 
         String triggerType = (attempt > 0) ? "CRON_RETRY" : "CRON";
         String executionId = executorTaskService.execute(
-                job.getTaskId(), params, job.getEnvironment(), triggerType, job.getId());
+                link.getTaskId(), params,
+                resolveTaskEnv(link, job), triggerType, job.getId());
 
         job.setLastExecutionId(executionId);
         job.setLastFireTime(LocalDateTime.now());
@@ -282,7 +300,17 @@ public class HighFrequencyScheduler {
         scheduleJobService.updateFireResult(job);
 
         log.debug("Fired high-frequency job {} (taskId={}), executionId={}, attempt={}",
-                job.getId(), job.getTaskId(), executionId, attempt);
+                job.getId(), link.getTaskId(), executionId, attempt);
+    }
+
+    /**
+     * 解析任务执行环境: 优先使用 link 级别, 回退到 job 级别。
+     */
+    private String resolveTaskEnv(ScheduleJobTask link, ScheduleJob job) {
+        if (link.getEnvironment() != null && !link.getEnvironment().isBlank()) {
+            return link.getEnvironment().trim().toUpperCase();
+        }
+        return job.getEnvironment();
     }
 
     private boolean isWithinTimeWindow(ScheduleJob job) {

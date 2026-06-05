@@ -1,6 +1,7 @@
 package com.cqie.datafactory.executor.schedule;
 
 import com.cqie.datafactory.executor.schedule.entity.ScheduleJob;
+import com.cqie.datafactory.executor.schedule.entity.ScheduleJobTask;
 import com.cqie.datafactory.executor.schedule.event.JobFailureEvent;
 import com.cqie.datafactory.executor.schedule.guard.ExecutionGuard;
 import com.cqie.datafactory.executor.schedule.util.CronHelper;
@@ -102,42 +103,63 @@ public class TaskScheduleExecutor {
     // ===================== Block Strategies =====================
 
     private void fireWithSkip(ScheduleJob job) {
-        if (!executionGuard.tryAcquire(job.getTaskId())) {
-            log.debug("SKIP: task {} 正在执行中，跳过本次触发", job.getTaskId());
+        scheduleJobService.loadJobTasks(job);
+        List<ScheduleJobTask> tasks = job.getJobTasks();
+        if (tasks == null || tasks.isEmpty()) {
+            log.warn("Job {} 没有关联任务，跳过", job.getId());
             return;
         }
-        try {
-            executeWithRetry(job);
-        } finally {
-            executionGuard.release(job.getTaskId());
+        for (ScheduleJobTask link : tasks) {
+            String lockKey = buildTaskLockKey(job.getId(), link);
+            if (!executionGuard.tryAcquire(lockKey)) {
+                log.debug("SKIP: task {} 正在执行中 (jobId={}), 跳过", link.getTaskId(), job.getId());
+                continue;
+            }
+            try {
+                executeSingleWithRetry(job, link);
+            } finally {
+                executionGuard.release(lockKey);
+            }
         }
     }
 
     private void fireWithQueue(ScheduleJob job) {
-        if (!executionGuard.tryAcquire(job.getTaskId())) {
-            int maxSize = job.getMaxQueueSize() != null ? job.getMaxQueueSize() : 5;
-            boolean queued = taskExecutionQueue.enqueue(job, maxSize);
-            if (!queued) {
-                log.warn("QUEUE: job {} 队列已满，丢弃", job.getId());
+        scheduleJobService.loadJobTasks(job);
+        List<ScheduleJobTask> tasks = job.getJobTasks();
+        if (tasks == null || tasks.isEmpty()) return;
+        for (ScheduleJobTask link : tasks) {
+            String lockKey = buildTaskLockKey(job.getId(), link);
+            if (!executionGuard.tryAcquire(lockKey)) {
+                int maxSize = job.getMaxQueueSize() != null ? job.getMaxQueueSize() : 5;
+                boolean queued = taskExecutionQueue.enqueue(job, maxSize);
+                if (!queued) {
+                    log.warn("QUEUE: job {} 队列已满，丢弃", job.getId());
+                }
+                continue;
             }
-            return;
-        }
-        try {
-            executeWithRetry(job);
-            // 执行完成后，处理排队中的任务
-            drainQueue(job.getId());
-        } finally {
-            executionGuard.release(job.getTaskId());
+            try {
+                executeSingleWithRetry(job, link);
+                // 执行完成后，处理排队中的任务
+                drainQueue(job.getId());
+            } finally {
+                executionGuard.release(lockKey);
+            }
         }
     }
 
     private void fireWithCover(ScheduleJob job) {
-        executionGuard.forceRelease(job.getTaskId());
-        executionGuard.tryAcquire(job.getTaskId());
-        try {
-            executeWithRetry(job);
-        } finally {
-            executionGuard.release(job.getTaskId());
+        scheduleJobService.loadJobTasks(job);
+        List<ScheduleJobTask> tasks = job.getJobTasks();
+        if (tasks == null || tasks.isEmpty()) return;
+        for (ScheduleJobTask link : tasks) {
+            String lockKey = buildTaskLockKey(job.getId(), link);
+            executionGuard.forceRelease(lockKey);
+            executionGuard.tryAcquire(lockKey);
+            try {
+                executeSingleWithRetry(job, link);
+            } finally {
+                executionGuard.release(lockKey);
+            }
         }
     }
 
@@ -152,7 +174,14 @@ public class TaskScheduleExecutor {
 
     // ===================== Retry Logic =====================
 
-    private void executeWithRetry(ScheduleJob job) {
+    /**
+     * 对单个 task 执行并重试。
+     */
+    private void executeSingleWithRetry(ScheduleJob job, ScheduleJobTask link) {
+        int maxRetries = job.getRetryCount() != null ? job.getRetryCount() : 0;
+        int retryInterval = job.getRetryInterval() != null ? job.getRetryInterval() : 60;
+        Exception lastException = null;
+
         // 获取分布式锁（多实例互斥）
         int lockSec = computeLockSeconds(job);
         if (!distributedLock.tryLock(job.getId(), lockSec)) {
@@ -160,15 +189,10 @@ public class TaskScheduleExecutor {
             return;
         }
 
-        int maxRetries = job.getRetryCount() != null ? job.getRetryCount() : 0;
-        int retryInterval = job.getRetryInterval() != null ? job.getRetryInterval() : 60;
-        Exception lastException = null;
-
         try {
             for (int attempt = 0; attempt <= maxRetries; attempt++) {
                 try {
                     if (attempt > 0) {
-                        // 重试前重新获取最新状态
                         ScheduleJob latest = scheduleJobService.getById(job.getId());
                         if (latest == null || latest.getStatus() == null || latest.getStatus() != 1) {
                             log.info("重试中止: job {} 已被禁用或删除", job.getId());
@@ -176,9 +200,9 @@ public class TaskScheduleExecutor {
                         }
                         Thread.sleep(retryInterval * 1000L);
                     }
-                    doFire(job, attempt);
+                    doFireTask(job, link, attempt);
                     job.setCurrentRetry(0);
-                    return; // 成功
+                    return;
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     return;
@@ -186,61 +210,44 @@ public class TaskScheduleExecutor {
                     lastException = e;
                     job.setCurrentRetry(attempt + 1);
                     scheduleJobService.updateFireResult(job);
-                    log.warn("任务执行失败，第{}/{}次重试: jobId={}, error={}",
-                            attempt + 1, maxRetries, job.getId(), e.getMessage());
+                    log.warn("任务执行失败，第{}/{}次重试: jobId={}, taskId={}, error={}",
+                            attempt + 1, maxRetries, job.getId(), link.getTaskId(), e.getMessage());
                 }
             }
 
-            // 重试耗尽
-            log.error("任务最终失败: jobId={}, 已重试{}次", job.getId(), maxRetries);
+            log.error("任务最终失败: jobId={}, taskId={}, 已重试{}次", job.getId(), link.getTaskId(), maxRetries);
             eventPublisher.publishEvent(new JobFailureEvent(
-                    job.getId(), job.getTaskId(),
-                    "task-" + job.getTaskId(), // taskName 可从 task 表查询优化
+                    job.getId(), link.getTaskId(),
+                    "task-" + link.getTaskId(),
                     job.getLastExecutionId(),
                     lastException != null ? lastException.getMessage() : "unknown",
                     job.getEnvironment(), LocalDateTime.now()));
-
         } finally {
             distributedLock.release(job.getId());
         }
     }
 
-    private void doFire(ScheduleJob job, int attempt) {
+    /**
+     * 触发单个任务的执行。
+     */
+    private void doFireTask(ScheduleJob job, ScheduleJobTask link, int attempt) {
         Map<String, Object> params = new HashMap<>();
-        params.put("versionId", job.getTaskVersionId());
+        params.put("versionId", link.getTaskVersionId());
         if (attempt > 0) {
             params.put("retryAttempt", attempt);
         }
 
-        // 解析定时任务参数配置，将覆盖值传入执行引擎
-        if (job.getParamsConfig() != null && !job.getParamsConfig().isBlank()) {
-            try {
-                Map<String, Object> configMap = objectMapper.readValue(
-                        job.getParamsConfig(), new TypeReference<Map<String, Object>>() {});
-                // paramsConfig 结构: { "params": [{ "paramCode": "...", "sourceValue": "...", ... }, ...] }
-                // 提取 paramCode -> sourceValue 的映射，注入到执行参数中
-                Object paramsList = configMap.get("params");
-                if (paramsList instanceof List) {
-                    for (Object item : (List<?>) paramsList) {
-                        if (item instanceof Map) {
-                            @SuppressWarnings("unchecked")
-                            Map<String, Object> paramItem = (Map<String, Object>) item;
-                            String paramCode = (String) paramItem.get("paramCode");
-                            Object sourceValue = paramItem.get("sourceValue");
-                            if (paramCode != null && !paramCode.isBlank() && sourceValue != null) {
-                                params.put(paramCode, sourceValue);
-                            }
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("解析定时任务参数配置失败: jobId={}, error={}", job.getId(), e.getMessage());
-            }
+        // 解析每个任务的 paramsConfig (优先) 或 job 级别的 paramsConfig (回退)
+        String configJson = (link.getParamsConfig() != null && !link.getParamsConfig().isBlank())
+                ? link.getParamsConfig() : job.getParamsConfig();
+        if (configJson != null && !configJson.isBlank()) {
+            mergeParamsFromConfig(params, configJson);
         }
 
         String triggerType = (attempt > 0) ? "CRON_RETRY" : "CRON";
         String executionId = executorTaskService.execute(
-                job.getTaskId(), params, job.getEnvironment(), triggerType, job.getId());
+                link.getTaskId(), params,
+                resolveTaskEnv(link, job), triggerType, job.getId());
 
         job.setLastExecutionId(executionId);
         job.setLastFireTime(LocalDateTime.now());
@@ -248,7 +255,49 @@ public class TaskScheduleExecutor {
         scheduleJobService.updateFireResult(job);
 
         log.info("定时任务触发成功: jobId={}, taskId={}, executionId={}, attempt={}",
-                job.getId(), job.getTaskId(), executionId, attempt);
+                job.getId(), link.getTaskId(), executionId, attempt);
+    }
+
+    private void mergeParamsFromConfig(Map<String, Object> params, String configJson) {
+        try {
+            Map<String, Object> configMap = objectMapper.readValue(
+                    configJson, new TypeReference<Map<String, Object>>() {});
+            Object paramsList = configMap.get("params");
+            if (paramsList instanceof List) {
+                for (Object item : (List<?>) paramsList) {
+                    if (item instanceof Map) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> paramItem = (Map<String, Object>) item;
+                        String paramCode = (String) paramItem.get("paramCode");
+                        Object sourceValue = paramItem.get("sourceValue");
+                        if (paramCode != null && !paramCode.isBlank() && sourceValue != null) {
+                            params.put(paramCode, sourceValue);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("解析参数配置失败: error={}", e.getMessage());
+        }
+    }
+
+    private String buildLockKey(Long jobId, Long taskId) {
+        return jobId + ":" + taskId;
+    }
+
+    /** 多任务场景锁键：区分同一 task 的不同版本 */
+    private String buildTaskLockKey(Long jobId, ScheduleJobTask link) {
+        return jobId + ":" + link.getTaskId() + ":" + link.getTaskVersionId();
+    }
+
+    /**
+     * 解析任务执行环境: 优先使用 link 级别, 回退到 job 级别。
+     */
+    private String resolveTaskEnv(ScheduleJobTask link, ScheduleJob job) {
+        if (link.getEnvironment() != null && !link.getEnvironment().isBlank()) {
+            return link.getEnvironment().trim().toUpperCase();
+        }
+        return job.getEnvironment();
     }
 
     // ===================== Helpers =====================

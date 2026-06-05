@@ -54,6 +54,11 @@ public class ExecutorTaskController {
         return Result.success(executorTaskService.detail(id));
     }
 
+    @GetMapping("/count")
+    public Result<Long> count() {
+        return Result.success(executorTaskService.count());
+    }
+
     @GetMapping({"", "/page"})
     public Result<PageResult<ExecutorTaskVO>> page(
             @RequestParam(value = "current", defaultValue = "1") Long current,

@@ -66,8 +66,9 @@ public class TimeoutGuardScheduler {
                 execLog.setErrorMessage("执行超时 (阈值: " + timeoutSec + "s, 实际: " + runningMs + "ms)");
                 executionLogService.updateById(execLog);
 
-                // 释放执行锁
-                executionGuard.release(execLog.getTaskId());
+                // 释放执行锁 (使用复合 key)
+                executionGuard.release(execLog.getScheduleJobId() + ":" + execLog.getTaskId());
+                executionGuard.release(execLog.getTaskId()); // 兼容旧 Long key
 
                 // 发布超时事件
                 eventPublisher.publishEvent(new JobTimeoutEvent(

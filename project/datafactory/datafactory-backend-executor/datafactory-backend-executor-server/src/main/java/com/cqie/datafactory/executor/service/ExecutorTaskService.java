@@ -13,4 +13,5 @@ public interface ExecutorTaskService {
     PageResult<ExecutorTaskVO> page(long current, long size, String keyword, String status);
     void changeStatus(Long id, Integer status);
     String execute(Long id, java.util.Map<String, Object> params, String environment, String triggerType, Long scheduleJobId);
+    long count();
 }

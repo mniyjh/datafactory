@@ -60,6 +60,19 @@
     <!-- 执行详情弹窗 -->
     <a-modal v-model:open="detailVisible" title="执行详情" :width="900" :footer="null"
       :body-style="{ maxHeight: '70vh', overflowY: 'auto', padding: '16px 24px' }">
+      <!-- 同批任务切换下拉框 -->
+      <div v-if="scheduleLogs.length >= 1" style="margin-bottom:12px;display:flex;gap:8px;align-items:center;">
+        <span style="font-size:13px;color:#666;white-space:nowrap;">关联任务 ({{ scheduleLogs.length }}) :</span>
+        <a-select v-model:value="currentScheduleExecId" style="flex:1;max-width:400px;" size="small"
+          @change="switchScheduleExecById">
+          <a-select-option v-for="slog in scheduleLogs" :key="slog.id" :value="slog.executionId">
+            {{ slog.taskName }} v{{ slog.taskVersion }}
+            — {{ statusLabel(slog.status) }}
+            — {{ slog.startTime }}
+          </a-select-option>
+        </a-select>
+      </div>
+      <div v-if="scheduleLoading" style="margin-bottom:12px;color:#999;font-size:13px;">加载关联任务中...</div>
       <div>
       <a-descriptions bordered :column="2" size="small">
         <a-descriptions-item label="执行ID" :span="2">{{ currentLog.executionId }}</a-descriptions-item>
@@ -189,13 +202,15 @@
 
 <script setup>
 import { ref, reactive, onMounted, watch, computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
 import dayjs from 'dayjs';
 import { taskApi } from '../api/task';
+import { scheduleApi } from '../api/scheduleApi';
 import { executionStore } from '../store/execution';
 
 const route = useRoute();
+const router = useRouter();
 const loading = ref(false);
 const rows = ref([]);
 const stats = reactive({ total: 0, success: 0, failure: 0, rate: '0.00' });
@@ -205,6 +220,9 @@ const pagination = reactive({ total: 0, current: 1, pageSize: 10, showSizeChange
 
 const detailVisible = ref(false);
 const currentLog = ref({});
+const scheduleLogs = ref([]);
+const scheduleLoading = ref(false);
+const currentScheduleExecId = ref(null);
 const nodeLogVisible = ref(false);
 const nodeLogs = ref([]);
 const selectedNode = ref(null);
@@ -329,10 +347,59 @@ const handleTableChange = (pag) => {
   loadLogs();
 };
 
-const showDetail = (record) => {
+const showDetail = async (record) => {
   currentLog.value = record;
+  currentScheduleExecId.value = record.executionId;
+  if (record.scheduleJobId) {
+    await loadScheduleLogs(record.scheduleJobId);
+  } else {
+    scheduleLogs.value = [];
+  }
   detailVisible.value = true;
 };
+
+const loadScheduleLogs = async (scheduleJobId) => {
+  scheduleLoading.value = true;
+  try {
+    const res = await scheduleApi.executions(scheduleJobId);
+    const all = res.data?.data || [];
+    console.log('scheduleLogs total:', scheduleJobId, all.length, 'records');
+    // 取最近一批（30秒内触发的视为同批）
+    if (all.length > 1) {
+      const latest = all[0];
+      const latestTime = new Date(latest.startTime).getTime();
+      const filtered = all.filter(e =>
+        Math.abs(new Date(e.startTime).getTime() - latestTime) < 2000
+      );
+      scheduleLogs.value = filtered;
+      console.log('scheduleLogs filtered:', filtered.length, 'records, first:', filtered[0]?.executionId, filtered[0]?.startTime);
+    } else {
+      scheduleLogs.value = all;
+      console.log('scheduleLogs single batch');
+    }
+    console.log('scheduleLogs after set:', scheduleLogs.value.length);
+  } catch (e) {
+    console.error('加载关联任务执行记录失败:', e);
+    scheduleLogs.value = [];
+  } finally {
+    scheduleLoading.value = false;
+  }
+};
+
+const switchScheduleExecById = (execId) => {
+  const slog = scheduleLogs.value.find(e => e.executionId === execId);
+  if (slog) {
+    currentLog.value = slog;
+    currentScheduleExecId.value = execId;
+  }
+};
+
+// 关闭详情弹窗时清除 URL 参数，防止刷新后再次弹出
+watch(detailVisible, (v) => {
+  if (!v && (route.query.executionId || route.query.scheduleJobId)) {
+    router.replace({ path: '/execute-log', query: {} });
+  }
+});
 
 const showNodeLogs = async (record) => {
   try {
@@ -363,6 +430,8 @@ watch(() => executionStore.activeExecutions.map(e => e.status), (newStatuses, ol
     setTimeout(loadLogs, 1000); // 延迟 1s 确保后端落库完成
   }
 }, { deep: true });
+
+const statusLabel = (s) => ({ SUCCESS: '成功', FAILURE: '失败', TIMEOUT: '超时', RUNNING: '执行中' }[s] || s);
 
 const formatJson = (str) => {
   if (!str) return '{}';
@@ -434,7 +503,11 @@ onMounted(async () => {
   await loadLogs();
   if (route.query.executionId) {
     const target = rows.value.find(r => r.executionId === route.query.executionId);
-    if (target) showDetail(target);
+    if (target) {
+      // 携带 scheduleJobId 进入，自动加载同批任务
+      target.scheduleJobId = route.query.scheduleJobId || target.scheduleJobId;
+      showDetail(target);
+    }
   }
 });
 </script>

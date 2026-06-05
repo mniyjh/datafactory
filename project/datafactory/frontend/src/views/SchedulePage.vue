@@ -5,8 +5,7 @@
       <a-button type="primary" @click="showCreateModal">新建定时任务</a-button>
     </div>
 
-    <a-table :columns="columns" :data-source="jobs" :loading="loading" row-key="id" size="middle"
-      :expandable="{ expandedRowRender }">
+    <a-table :columns="columns" :data-source="jobs" :loading="loading" row-key="id" size="middle">
       <template #status="{ record }">
         <a-tag :color="record.status === 1 ? 'green' : 'red'">
           {{ record.status === 1 ? '启用' : '停用' }}
@@ -21,10 +20,14 @@
         </a-tag>
       </template>
       <template #lastFire="{ record }">
-        <span v-if="record.lastFireTime && record.lastExecutionId">
-          <a @click="viewLog(record.lastExecutionId)">{{ record.lastFireTime }}</a>
-        </span>
-        <span v-else>{{ record.lastFireTime || '未执行' }}</span>
+        <template v-if="record.lastFireTime && record.lastExecutionId">
+          <a @click="viewScheduleExecutions(record)">{{ record.lastFireTime }}</a>
+          <span v-if="record.jobTasks && record.jobTasks.length > 1"
+            style="color:#999; font-size:12px; margin-left:4px;">
+            ({{ record.jobTasks.length }}个任务)
+          </span>
+        </template>
+        <span v-else>未执行</span>
       </template>
       <template #retry="{ record }">
         <span v-if="record.currentRetry > 0">
@@ -58,12 +61,12 @@
               <div class="section-title">基本信息</div>
 
               <a-row :gutter="16">
-                <a-col :span="8">
+                <a-col :span="12">
                   <a-form-item label="定时任务编码" required name="jobCode">
                     <a-input v-model:value="form.jobCode" placeholder="唯一编码" :disabled="!!editingId" />
                   </a-form-item>
                 </a-col>
-                <a-col :span="8">
+                <a-col :span="12">
                   <a-form-item label="环境" required name="environment">
                     <a-select v-model:value="form.environment" @change="onEnvironmentChange">
                       <a-select-option value="TEST">TEST（测试环境）</a-select-option>
@@ -71,25 +74,41 @@
                     </a-select>
                   </a-form-item>
                 </a-col>
-                <a-col :span="8">
-                  <a-form-item label="选择任务" required name="taskId">
-                    <a-select v-model:value="form.taskId" placeholder="请选择任务" show-search
-                      :filter-option="filterTaskOption" @change="onTaskChange" :loading="taskLoading">
-                      <a-select-option v-for="t in taskList" :key="t.id" :value="t.id">
-                        {{ t.taskName }} ({{ t.taskCode }})
-                      </a-select-option>
-                    </a-select>
-                  </a-form-item>
-                </a-col>
               </a-row>
 
-              <a-form-item label="选择版本" required name="taskVersionId">
-                <a-select v-model:value="form.taskVersionId" placeholder="请先选择任务和环境" :loading="versionLoading"
-                  :disabled="!form.taskId || !form.environment" @change="loadIoParams">
-                  <a-select-option v-for="v in versionList" :key="v.id" :value="v.id">
-                    {{ v.version }} - {{ v.changeLog || '无变更说明' }}
-                  </a-select-option>
-                </a-select>
+              <!-- 多任务关联列表 -->
+              <a-form-item label="关联任务" required name="tasks" help="点击任务行切换右侧参数配置 | 环境为空则继承定时任务的环境">
+                <div v-for="(taskItem, index) in form.tasks" :key="index"
+                  :class="['task-item-row', { 'task-item-active': activeTaskIndex === index }]"
+                  @click="switchActiveTask(index)">
+                  <a-select v-model:value="taskItem.taskId" placeholder="选择任务" show-search
+                    :filter-option="filterTaskOption" @change="(val) => onTaskItemChange(index, val)"
+                    @click.stop :loading="taskLoading" style="flex:2.5">
+                    <a-select-option v-for="t in taskList" :key="t.id" :value="t.id">
+                      {{ t.taskName }} ({{ t.taskCode }})
+                    </a-select-option>
+                  </a-select>
+                  <a-select v-model:value="taskItem.environment" placeholder="环境"
+                    @click.stop @change="(val) => onTaskEnvChange(index, val)"
+                    style="width:80px; flex-shrink:0" allowClear>
+                    <a-select-option value="TEST">TEST</a-select-option>
+                    <a-select-option value="PROD">PROD</a-select-option>
+                  </a-select>
+                  <a-select v-model:value="taskItem.taskVersionId" placeholder="选择版本"
+                    @click.stop @change="(val) => onTaskVersionChange(index, val)"
+                    style="flex:1.5" :disabled="!taskItem.taskId">
+                    <a-select-option v-for="v in getVersionsForTaskItem(taskItem)" :key="v.id" :value="v.id">
+                      {{ v.version }}
+                    </a-select-option>
+                  </a-select>
+                  <a-tag v-if="activeTaskIndex === index" color="blue" style="margin-left:4px">当前</a-tag>
+                  <a-button v-if="form.tasks.length > 1"
+                    size="small" danger @click.stop="removeTaskItem(index)">✕</a-button>
+                </div>
+                <a-button type="dashed" size="small" @click="addTaskItem"
+                  :disabled="form.tasks.length >= 10" style="margin-top:4px">
+                  + 添加任务
+                </a-button>
               </a-form-item>
 
               <a-form-item label="Cron 表达式" required name="cronExpression">
@@ -179,8 +198,13 @@
 
           <!-- 右侧：流程画布 + 参数配置 -->
           <div class="layout-right">
-            <div class="section-card" v-if="form.taskVersionId">
-              <div class="section-title">流程可视化</div>
+            <div class="section-card" v-if="activeTask && activeTask.taskVersionId">
+              <div class="section-title">
+                流程可视化
+                <a-tag color="blue" style="margin-left:8px">
+                  {{ getActiveTaskName() }}
+                </a-tag>
+              </div>
               <div class="flow-viewer-mini" v-if="currentDslContent">
                 <FlowViewer :dsl-content="currentDslContent" @node-click="onFlowNodeClick" />
               </div>
@@ -218,6 +242,7 @@
                     <a-input
                       v-if="record.ioType === 'INPUT'"
                       v-model:value="paramsConfig[record.id]"
+                      @change="(e) => onParamValueChange(record, e.target.value)"
                       :placeholder="formatSourceDisplay(record.sourceValue)"
                       size="small"
                     />
@@ -229,7 +254,7 @@
               <a-empty v-else-if="currentDslContent && !paramsLoading" description="点击画布中的节点查看参数" style="margin: 16px 0;" />
             </div>
             <div class="empty-placeholder" v-else>
-              <a-empty description="请先选择任务版本以配置参数" />
+              <a-empty :description="form.tasks.some(t => t.taskId) ? '请为当前任务选择版本以配置参数' : '请先选择关联任务和版本'" />
             </div>
           </div>
         </div>
@@ -259,7 +284,7 @@
 </template>
 
 <script setup>
-import { h, ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
 import { scheduleApi } from '../api/scheduleApi';
@@ -273,8 +298,18 @@ const formRef = ref();
 const formRules = {
   jobCode: [{ required: true, message: '请输入定时任务编码', trigger: 'blur' }],
   environment: [{ required: true, message: '请选择环境', trigger: 'change' }],
-  taskId: [{ required: true, message: '请选择任务', trigger: 'change' }],
-  taskVersionId: [{ required: true, message: '请选择版本', trigger: 'change' }],
+  tasks: [{
+    type: 'array', required: true, min: 1,
+    message: '请至少添加一个关联任务', trigger: 'change',
+    validator: (_rule, value) => {
+      if (!value || value.length === 0) return Promise.reject('请至少添加一个关联任务');
+      for (const item of value) {
+        if (!item.taskId) return Promise.reject('请为每个关联任务选择任务');
+        if (!item.taskVersionId) return Promise.reject('请为每个关联任务选择版本');
+      }
+      return Promise.resolve();
+    }
+  }],
   cronExpression: [
     { required: true, message: '请输入Cron表达式', trigger: 'blur' },
     { pattern: /^[0-9*,/\-?A-Za-z]+\s[0-9*,/\-?A-Za-z]+\s[0-9*,/\-?A-Za-z]+\s[0-9*,/\-?A-Za-z]+\s[0-9*,/\-?A-Za-z]+\s[0-9*,/\-?A-Za-z#]+$/, message: 'Cron表达式格式不正确(6段)', trigger: 'blur' }
@@ -301,6 +336,14 @@ const ioParamsList = ref([]);
 const currentDslContent = ref(null);
 const paramsLoading = ref(false);
 const paramsConfig = ref({});
+const activeTaskIndex = ref(0);
+
+const activeTask = computed(() => {
+  const tasks = form.value.tasks;
+  if (!tasks || tasks.length === 0) return null;
+  const idx = Math.min(activeTaskIndex.value, tasks.length - 1);
+  return tasks[idx] || tasks[0] || null;
+});
 
 const selectedFlowNode = ref(null);
 const filteredIoParams = computed(() => {
@@ -325,6 +368,7 @@ const defaultForm = () => ({
   taskId: null,
   taskCode: '',
   taskVersionId: null,
+  tasks: [{ taskId: null, taskVersionId: null, environment: null }],
   cronExpression: '',
   environment: 'TEST',
   retryCount: 0,
@@ -342,7 +386,10 @@ const form = ref(defaultForm());
 
 const columns = [
   { title: '编码', dataIndex: 'jobCode', key: 'jobCode', width: 130 },
-  { title: '任务ID', dataIndex: 'taskId', key: 'taskId', width: 70 },
+  { title: '关联任务数', key: 'taskCount', width: 90,
+    customCell: () => ({ style: { textAlign: 'center' } }),
+    customRender: ({ record }) => (record.jobTasks && record.jobTasks.length) ? record.jobTasks.length : (record.taskId ? 1 : 0)
+  },
   { title: 'Cron', key: 'cron', slots: { customRender: 'cron' }, width: 160 },
   { title: '环境', dataIndex: 'environment', key: 'environment', width: 60 },
   { title: '状态', key: 'status', slots: { customRender: 'status' }, width: 60 },
@@ -362,21 +409,6 @@ const ioParamTableColumns = [
   { title: '必填', dataIndex: 'requiredFlag', width: 70 }
 ];
 
-// 展开行显示详细信息
-const expandedRowRender = (record) => {
-  if (!record) return h('span', '-');
-  try {
-    return h('div', { style: 'padding: 8px 16px; display:flex; gap:24px; flex-wrap:wrap; font-size:13px; color:#666;' }, [
-      h('span', `超时阈值: ${record.executorTimeout || 0}s`),
-      h('span', `错过策略: ${record.misfireStrategy || 'IGNORE'}`),
-      h('span', `告警邮箱: ${record.alarmEmail || '未配置'}`),
-      h('span', `父调度ID: ${record.parentJobId || '无'}`),
-      h('span', `下次触发: ${record.nextFireTime || '-'}`)
-    ]);
-  } catch (e) {
-    return h('span', '-');
-  }
-};
 
 const blockLabel = (s) => ({ SKIP: '跳过', QUEUE: '排队', COVER: '覆盖' }[s] || s || 'SKIP');
 const blockColor = (s) => ({ SKIP: 'blue', QUEUE: 'orange', COVER: 'red' }[s] || 'blue');
@@ -411,6 +443,230 @@ const filterTaskOption = (input, option) => {
   return String(label).toLowerCase().includes(String(input).toLowerCase());
 };
 
+// 每个 taskItem 独立加载版本列表
+const taskItemVersionMap = ref({}); // { [taskIndex]: versions[] }
+
+const addTaskItem = () => {
+  form.value.tasks.push({ taskId: null, taskVersionId: null, environment: null });
+};
+
+const removeTaskItem = (index) => {
+  if (form.value.tasks.length <= 1) return;
+  form.value.tasks.splice(index, 1);
+  // 清理被删除项的版本数据
+  const newMap = {};
+  Object.keys(taskItemVersionMap.value).forEach(k => {
+    const ki = Number(k);
+    if (ki < index) newMap[ki] = taskItemVersionMap.value[ki];
+    else if (ki > index) newMap[ki - 1] = taskItemVersionMap.value[ki];
+  });
+  taskItemVersionMap.value = newMap;
+  // 调整 active 索引
+  if (activeTaskIndex.value >= form.value.tasks.length) {
+    activeTaskIndex.value = form.value.tasks.length - 1;
+  }
+  loadActiveTaskIoParams();
+};
+
+const onTaskItemChange = (index, taskId) => {
+  const item = form.value.tasks[index];
+  item.taskVersionId = null;
+  // 加载该任务的版本列表
+  loadTaskItemVersions(index, taskId);
+};
+
+const resolveTaskEnv = (taskItem) => {
+  if (taskItem.environment) return taskItem.environment;
+  return form.value.environment || 'TEST';
+};
+
+const loadTaskItemVersions = async (index, taskId) => {
+  const taskItem = form.value.tasks[index];
+  if (!taskItem || !taskId) return;
+  const env = resolveTaskEnv(taskItem);
+  if (!env) return;
+  try {
+    const res = await taskApi.getTaskVersions(taskId, { environment: env });
+    taskItemVersionMap.value[index] = res.data?.data || [];
+  } catch (e) {
+    taskItemVersionMap.value[index] = [];
+  }
+};
+
+const onTaskEnvChange = (index, env) => {
+  const taskItem = form.value.tasks[index];
+  taskItem.environment = env || null;
+  taskItem.taskVersionId = null;
+  if (taskItem.taskId) {
+    loadTaskItemVersions(index, taskItem.taskId);
+  }
+  // 如果是当前激活的任务，刷新右侧面板
+  if (index === activeTaskIndex.value) {
+    ioParamsList.value = [];
+    currentDslContent.value = null;
+    paramsConfig.value = {};
+  }
+};
+
+const getVersionsForTaskItem = (taskItem) => {
+  const idx = form.value.tasks.indexOf(taskItem);
+  if (idx < 0) return [];
+  return taskItemVersionMap.value[idx] || [];
+};
+
+const switchActiveTask = (index) => {
+  if (activeTaskIndex.value === index) return;
+  // 保存当前参数到旧的 active taskItem
+  syncParamsToActiveTask();
+  activeTaskIndex.value = index;
+  // 加载新 task 的 DSL 和参数
+  loadActiveTaskIoParams();
+};
+
+const getActiveTaskName = () => {
+  const t = activeTask.value;
+  if (!t || !t.taskId) return '未选择';
+  const found = taskList.value.find(item => item.id === t.taskId);
+  return found ? `${found.taskName} (${found.taskCode})` : `任务#${t.taskId}`;
+};
+
+const onTaskVersionChange = (index, versionId) => {
+  if (index === activeTaskIndex.value) {
+    loadActiveTaskIoParams();
+  }
+};
+
+const onParamValueChange = (record, value) => {
+  paramsConfig.value[record.id] = value;
+  // 实时同步到 active taskItem
+  syncParamsToActiveTask();
+};
+
+// 将当前 paramsConfig 序列化回 active taskItem.paramsConfig
+const syncParamsToActiveTask = () => {
+  const task = activeTask.value;
+  if (!task) return;
+  const filledParams = ioParamsList.value
+    .filter(p => {
+      const val = paramsConfig.value[p.id];
+      return val !== undefined && val !== null && val !== '';
+    })
+    .map(p => ({
+      nodeId: p.nodeId,
+      nodeName: p.nodeName,
+      ioType: p.ioType,
+      paramCode: p.paramCode,
+      paramName: p.paramName,
+      dataType: p.dataType,
+      sourceType: p.sourceType,
+      originalSourceValue: typeof p.sourceValue === 'object' ? JSON.stringify(p.sourceValue) : String(p.sourceValue || ''),
+      sourceValue: paramsConfig.value[p.id]
+    }));
+  task.paramsConfig = filledParams.length > 0 ? JSON.stringify({ params: filledParams }) : null;
+};
+
+// 加载 active task 的 DSL -> IO 参数
+const loadActiveTaskIoParams = async () => {
+  const task = activeTask.value;
+  if (!task || !task.taskVersionId) {
+    ioParamsList.value = [];
+    currentDslContent.value = null;
+    paramsConfig.value = {};
+    selectedFlowNode.value = null;
+    return;
+  }
+  paramsLoading.value = true;
+  ioParamsList.value = [];
+  const idx = activeTaskIndex.value;
+  const versions = taskItemVersionMap.value[idx] || [];
+  const selectedVersion = versions.find(v => v.id === task.taskVersionId);
+  if (!selectedVersion || !selectedVersion.dslContent) {
+    paramsLoading.value = false;
+    return;
+  }
+  try {
+    const dsl = typeof selectedVersion.dslContent === 'string'
+      ? JSON.parse(selectedVersion.dslContent)
+      : selectedVersion.dslContent;
+    currentDslContent.value = dsl;
+    const nodes = dsl.nodes || [];
+    const componentIds = [...new Set(nodes.map(n => n.componentId).filter(Boolean))];
+    const metaMap = new Map();
+    await Promise.all(componentIds.map(async (cid) => {
+      try {
+        const res = await componentApi.getMeta(cid);
+        metaMap.set(cid, res.data?.data || null);
+      } catch (e) { metaMap.set(cid, null); }
+    }));
+    const rows = [];
+    nodes.forEach(node => {
+      if (isStartOrEndByNode(node)) {
+        const inputs = Array.isArray(node.inputParams) ? node.inputParams : [];
+        node.outputParams = inputs.map(item => ({
+          paramCode: item.paramCode, paramName: item.paramName,
+          dataType: item.dataType, requiredFlag: item.requiredFlag || 0,
+          sourceType: item.sourceType || 'CONST', sourceValue: item.sourceValue ?? '',
+          defaultValue: typeof item.sourceValue === 'string' ? item.sourceValue : ''
+        }));
+      }
+      const nodeParams = extractNodeIoParams(node);
+      const meta = node.componentId ? metaMap.get(node.componentId) : null;
+      const metaParams = [
+        ...(meta?.inputParams || []).map(p => ({ ...p, ioType: 'INPUT' })),
+        ...(meta?.outputParams || []).map(p => ({ ...p, ioType: 'OUTPUT' }))
+      ];
+      const byKey = new Map();
+      [...metaParams, ...nodeParams].forEach((p, idx2) => {
+        const t2 = String(p.ioType || p.paramType || 'INPUT').toUpperCase();
+        const k = `${t2}::${p.paramCode || p.paramName || p.name || idx2}`;
+        byKey.set(k, { ...(byKey.get(k) || {}), ...p, ioType: t2 });
+      });
+      Array.from(byKey.values()).forEach((param, idx2) => {
+        const upperType = String(param.ioType || 'INPUT').toUpperCase();
+        const key = param.paramCode || param.name || `${upperType === 'OUTPUT' ? 'output' : 'param'}_${idx2 + 1}`;
+        rows.push({
+          id: `${node.id}_${upperType}_${key}_${idx2}`,
+          ioType: upperType, paramCode: key,
+          paramName: param.paramName || param.name || key,
+          description: param.description || '',
+          dataType: param.dataType || param.type || 'STRING',
+          sourceType: param.sourceType || 'CONST',
+          sourceValue: ensureString(param.sourceValue) ?? ensureString(param.defaultValue) ?? '',
+          requiredFlag: Number(param.requiredFlag || 0),
+          nodeId: node.id, nodeName: node.name || node.id,
+          nodeType: node.type || '', componentCode: node.componentCode || ''
+        });
+      });
+    });
+    ioParamsList.value = rows;
+
+    // 恢复该 task 已保存的参数
+    if (task.paramsConfig) {
+      try {
+        const saved = typeof task.paramsConfig === 'string'
+          ? JSON.parse(task.paramsConfig) : task.paramsConfig;
+        const conf = saved?.params || saved || {};
+        if (Array.isArray(conf)) {
+          paramsConfig.value = {};
+          conf.forEach(p => {
+            const match = rows.find(r =>
+              r.nodeId === p.nodeId && r.ioType === p.ioType && r.paramCode === p.paramCode
+            );
+            if (match) paramsConfig.value[match.id] = p.sourceValue;
+          });
+        }
+      } catch (e) { paramsConfig.value = {}; }
+    } else {
+      paramsConfig.value = {};
+    }
+  } catch (e) {
+    ioParamsList.value = [];
+    console.warn('加载IO参数失败:', e);
+  } finally {
+    paramsLoading.value = false;
+  }
+};
+
 const onTaskChange = (taskId) => {
   const t = taskList.value.find(item => item.id === taskId);
   form.value.taskCode = t?.taskCode || '';
@@ -430,6 +686,11 @@ const onEnvironmentChange = () => {
   paramsConfig.value = {};
   currentDslContent.value = null;
   selectedFlowNode.value = null;
+  taskItemVersionMap.value = {};
+  // 重新加载所有 taskItem 的版本
+  form.value.tasks.forEach((item, i) => {
+    if (item.taskId) loadTaskItemVersions(i, item.taskId);
+  });
   if (form.value.taskId) loadVersionList();
 };
 
@@ -631,11 +892,13 @@ const formatSourceDisplay = (val) => {
 const showCreateModal = () => {
   editingId.value = null;
   form.value = defaultForm();
+  activeTaskIndex.value = 0;
   versionList.value = [];
   ioParamsList.value = [];
   paramsConfig.value = {};
   currentDslContent.value = null;
   selectedFlowNode.value = null;
+  taskItemVersionMap.value = {};
   loadTaskList();
   modalVisible.value = true;
 };
@@ -647,14 +910,43 @@ const editJob = async (record) => {
     ...record,
     taskCode: record.taskCode || ''
   };
+  activeTaskIndex.value = 0;
+  currentDslContent.value = null;
+  selectedFlowNode.value = null;
+  versionList.value = [];
+  ioParamsList.value = [];
+  paramsConfig.value = {};
+  taskItemVersionMap.value = {};
+
   await loadTaskList();
   if (!form.value.taskCode && form.value.taskId) {
     const t = taskList.value.find(item => item.id === form.value.taskId);
     form.value.taskCode = t?.taskCode || '';
   }
-  if (form.value.taskId) {
-    await loadVersionList();
-    await loadIoParams();
+
+  // 加载关联的任务列表
+  try {
+    const res = await scheduleApi.getJobTasks(record.id);
+    const jobTasks = res.data?.data || [];
+    if (jobTasks.length > 0) {
+      form.value.tasks = jobTasks.map(jt => ({
+        taskId: jt.taskId,
+        taskVersionId: jt.taskVersionId,
+        environment: jt.environment || null,
+        paramsConfig: jt.paramsConfig || null
+      }));
+      // 并行加载每个任务的版本列表
+      await Promise.all(jobTasks.map((jt, i) => loadTaskItemVersions(i, jt.taskId)));
+      // 加载第一个 task 的 IO 参数
+      await loadActiveTaskIoParams();
+    }
+  } catch (e) {
+    // Fallback: 使用旧 taskId
+    if (form.value.taskId) {
+      form.value.tasks = [{ taskId: form.value.taskId, taskVersionId: form.value.taskVersionId, environment: null }];
+      await loadTaskItemVersions(0, form.value.taskId);
+      await loadActiveTaskIoParams();
+    }
   }
   modalVisible.value = true;
 };
@@ -674,24 +966,23 @@ const handleSave = async () => {
     if (payload.windowEnd && typeof payload.windowEnd === 'object') {
       payload.windowEnd = payload.windowEnd.format('HH:mm:ss');
     }
-    // 序列化参数配置 (修改的来源值)
-    const filledParams = ioParamsList.value
-      .filter(p => {
-        const val = paramsConfig.value[p.id];
-        return val !== undefined && val !== null && val !== '';
-      })
-      .map(p => ({
-        nodeId: p.nodeId,
-        nodeName: p.nodeName,
-        ioType: p.ioType,
-        paramCode: p.paramCode,
-        paramName: p.paramName,
-        dataType: p.dataType,
-        sourceType: p.sourceType,
-        originalSourceValue: typeof p.sourceValue === 'object' ? JSON.stringify(p.sourceValue) : String(p.sourceValue || ''),
-        sourceValue: paramsConfig.value[p.id]  // the overridden value
+    // 保存前同步当前 active task 的参数
+    syncParamsToActiveTask();
+
+    // 构建多任务关联列表 (jobTasks)，每个 task 已自带 paramsConfig
+    if (payload.tasks && payload.tasks.length > 0) {
+      payload.jobTasks = payload.tasks.map((t, i) => ({
+        taskId: t.taskId,
+        taskVersionId: t.taskVersionId,
+        environment: t.environment || null,
+        sortOrder: i,
+        paramsConfig: t.paramsConfig || null
       }));
-    payload.paramsConfig = filledParams.length > 0 ? JSON.stringify({ params: filledParams }) : null;
+      // 向后兼容: 第一个 task 回填到 taskId/taskVersionId + job 级 paramsConfig
+      payload.taskId = payload.tasks[0].taskId;
+      payload.taskVersionId = payload.tasks[0].taskVersionId;
+      payload.paramsConfig = payload.tasks[0].paramsConfig || null;
+    }
     if (editingId.value) {
       await scheduleApi.update(editingId.value, payload);
     } else {
@@ -738,6 +1029,16 @@ const deleteJob = async (record) => {
 
 const viewLog = (executionId) => {
   router.push({ path: '/execute-log', query: { executionId } });
+};
+
+const viewScheduleExecutions = (record) => {
+  router.push({
+    path: '/execute-log',
+    query: {
+      scheduleJobId: record.id,
+      executionId: record.lastExecutionId
+    }
+  });
 };
 
 const showStats = async (record) => {
@@ -822,5 +1123,24 @@ onMounted(fetchJobs);
 .flow-viewer-mini {
   height: 280px;
   margin-bottom: 4px;
+}
+.task-item-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: flex-start;
+  padding: 6px 8px;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.task-item-row:hover {
+  background: #f0f5ff;
+  border-color: #d6e4ff;
+}
+.task-item-active {
+  background: #e6f4ff;
+  border-color: #1890ff;
 }
 </style>

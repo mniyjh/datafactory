@@ -61,5 +61,9 @@ export const scheduleApi = {
   },
   fetchVersionIoParams(taskDslId) {
     return api.get(`/task-dsl/${taskDslId}/all-io-params`);
+  },
+  // 多对多: 获取定时任务关联的所有任务
+  getJobTasks(id) {
+    return api.get(`/schedule/${id}/tasks`);
   }
 };

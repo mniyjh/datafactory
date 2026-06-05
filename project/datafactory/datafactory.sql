@@ -439,11 +439,11 @@ CREATE TABLE IF NOT EXISTS node_execution_log (
   KEY idx_node_id (node_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS schedule_job (
+CREATE TABLE schedule_job (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   job_code VARCHAR(64) NOT NULL UNIQUE,
-  task_id BIGINT NOT NULL,
-  task_version_id BIGINT NOT NULL,
+  task_id BIGINT DEFAULT NULL COMMENT '冗余字段: 首个关联任务ID(向后兼容)',
+  task_version_id BIGINT DEFAULT NULL COMMENT '冗余字段: 首个关联任务版本ID(向后兼容)',
   cron_expression VARCHAR(64) NOT NULL,
   environment VARCHAR(20) DEFAULT 'PROD',
   status TINYINT DEFAULT 1,
@@ -471,6 +471,24 @@ CREATE TABLE IF NOT EXISTS schedule_job (
   KEY idx_task_id (task_id),
   KEY idx_status (status),
   KEY idx_parent_job (parent_job_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 多对多关联表: 定时任务 ↔ 任务
+CREATE TABLE schedule_job_task (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  schedule_job_id BIGINT NOT NULL COMMENT '关联 schedule_job.id',
+  task_id BIGINT NOT NULL COMMENT '关联 task.id',
+  task_version_id BIGINT NOT NULL COMMENT '任务版本ID (关联 task_dsl.id)',
+  environment VARCHAR(20) DEFAULT 'PROD' COMMENT '该任务的执行环境(TEST/PROD)，不填则继承job环境',
+  sort_order INT NOT NULL DEFAULT 0 COMMENT '执行顺序，数字越小越先执行',
+  params_config LONGTEXT DEFAULT NULL COMMENT '每个任务的参数配置覆盖(JSON)',
+  created_by VARCHAR(64) DEFAULT 'admin',
+  created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_by VARCHAR(64) DEFAULT 'admin',
+  updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_job_task_version (schedule_job_id, task_id, task_version_id),
+  INDEX idx_schedule_job_id (schedule_job_id),
+  INDEX idx_task_id (task_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS schedule_lock (

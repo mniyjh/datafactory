@@ -4,18 +4,23 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.cqie.datafactory.executor.schedule.entity.ScheduleJob;
 import com.cqie.datafactory.executor.schedule.entity.ScheduleJobAuditLog;
+import com.cqie.datafactory.executor.schedule.entity.ScheduleJobTask;
 import com.cqie.datafactory.executor.schedule.mapper.ScheduleJobAuditLogMapper;
 import com.cqie.datafactory.executor.schedule.mapper.ScheduleJobMapper;
+import com.cqie.datafactory.executor.schedule.mapper.ScheduleJobTaskMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class ScheduleJobService extends ServiceImpl<ScheduleJobMapper, ScheduleJob> {
@@ -24,6 +29,9 @@ public class ScheduleJobService extends ServiceImpl<ScheduleJobMapper, ScheduleJ
 
     @Autowired
     private ScheduleJobAuditLogMapper auditLogMapper;
+
+    @Autowired
+    private ScheduleJobTaskMapper scheduleJobTaskMapper;
 
     @Lazy
     @Autowired(required = false)
@@ -38,11 +46,18 @@ public class ScheduleJobService extends ServiceImpl<ScheduleJobMapper, ScheduleJ
     }
 
     /**
-     * 查询指定 task_id 对应的所有调度。
+     * 查询指定 task_id 对应的所有调度（通过关联表）。
      */
     public List<ScheduleJob> listByTaskId(Long taskId) {
-        return list(new LambdaQueryWrapper<ScheduleJob>()
-                .eq(ScheduleJob::getTaskId, taskId));
+        List<Long> jobIds = scheduleJobTaskMapper.selectList(
+                new LambdaQueryWrapper<ScheduleJobTask>()
+                        .select(ScheduleJobTask::getScheduleJobId)
+                        .eq(ScheduleJobTask::getTaskId, taskId))
+                .stream()
+                .map(ScheduleJobTask::getScheduleJobId)
+                .collect(Collectors.toList());
+        if (jobIds.isEmpty()) return Collections.emptyList();
+        return listByIds(jobIds);
     }
 
     /**
@@ -57,19 +72,33 @@ public class ScheduleJobService extends ServiceImpl<ScheduleJobMapper, ScheduleJ
     // ===================== CUD with audit =====================
 
     @Override
+    @Transactional
     public boolean save(ScheduleJob job) {
-        computeNextFireTime(job);
-        boolean result = super.save(job);
-        if (result) {
+        try {
+            prefillDirectFieldsFromJobTasks(job);
+            computeNextFireTime(job);
+            boolean result = super.save(job);
+            if (!result) {
+                log.error("保存定时任务失败: super.save 返回 false");
+                return false;
+            }
+            log.info("定时任务已保存 id={}, 准备写入关联表, jobTasks={}",
+                    job.getId(), job.getJobTasks() != null ? job.getJobTasks().size() : 0);
+            syncJobTasksFromJob(job);
             recordAudit(job.getId(), "CREATE", null, job);
             if (highFrequencyScheduler != null) {
                 highFrequencyScheduler.onJobChanged(job);
             }
+            log.info("定时任务保存完成 id={}", job.getId());
+            return true;
+        } catch (Exception e) {
+            log.error("保存定时任务异常: id={}, error={}", job.getId(), e.getMessage(), e);
+            throw e;
         }
-        return result;
     }
 
     @Override
+    @Transactional
     public boolean updateById(ScheduleJob job) {
         ScheduleJob oldJob = getById(job.getId());
         if (oldJob == null) return false;
@@ -77,6 +106,11 @@ public class ScheduleJobService extends ServiceImpl<ScheduleJobMapper, ScheduleJ
         computeNextFireTime(job);
         boolean result = super.updateById(job);
         if (result) {
+            // 重建关联表记录
+            scheduleJobTaskMapper.delete(
+                    new LambdaQueryWrapper<ScheduleJobTask>()
+                            .eq(ScheduleJobTask::getScheduleJobId, job.getId()));
+            syncJobTasksFromJob(job);
             recordAudit(job.getId(), "UPDATE", oldJob, job);
             if (highFrequencyScheduler != null) {
                 highFrequencyScheduler.onJobUpdated(oldJob, job);
@@ -86,9 +120,15 @@ public class ScheduleJobService extends ServiceImpl<ScheduleJobMapper, ScheduleJ
     }
 
     @Override
+    @Transactional
     public boolean removeById(java.io.Serializable id) {
         ScheduleJob oldJob = getById(id);
         if (oldJob == null) return false;
+
+        // 级联删除关联表记录
+        scheduleJobTaskMapper.delete(
+                new LambdaQueryWrapper<ScheduleJobTask>()
+                        .eq(ScheduleJobTask::getScheduleJobId, id));
 
         boolean result = super.removeById(id);
         if (result) {
@@ -254,5 +294,74 @@ public class ScheduleJobService extends ServiceImpl<ScheduleJobMapper, ScheduleJ
         copy.setLastFireTime(source.getLastFireTime());
         copy.setNextFireTime(source.getNextFireTime());
         return copy;
+    }
+
+    // ===================== 多对多关联表辅助方法 =====================
+
+    /**
+     * 加载 job 的关联任务列表到 jobTasks 字段。
+     */
+    public void loadJobTasks(ScheduleJob job) {
+        if (job == null || job.getId() == null) return;
+        List<ScheduleJobTask> tasks = scheduleJobTaskMapper.selectList(
+                new LambdaQueryWrapper<ScheduleJobTask>()
+                        .eq(ScheduleJobTask::getScheduleJobId, job.getId())
+                        .orderByAsc(ScheduleJobTask::getSortOrder));
+        job.setJobTasks(tasks);
+    }
+
+    /**
+     * 批量加载多个 job 的关联任务列表。
+     */
+    public void loadJobTasksBatch(List<ScheduleJob> jobs) {
+        if (jobs == null || jobs.isEmpty()) return;
+        for (ScheduleJob job : jobs) {
+            loadJobTasks(job);
+        }
+    }
+
+    /**
+     * 将 job.jobTasks 写入关联表。
+     */
+    private void syncJobTasksFromJob(ScheduleJob job) {
+        if (job.getJobTasks() == null || job.getJobTasks().isEmpty()) {
+            // 如果 jobTasks 为空但 taskId 有值，从 taskId 自动创建一条
+            if (job.getTaskId() != null) {
+                ScheduleJobTask link = new ScheduleJobTask();
+                link.setScheduleJobId(job.getId());
+                link.setTaskId(job.getTaskId());
+                link.setTaskVersionId(job.getTaskVersionId());
+                link.setSortOrder(0);
+                link.setParamsConfig(job.getParamsConfig());
+                link.setCreatedBy(job.getCreatedBy() != null ? job.getCreatedBy() : "admin");
+                link.setCreatedTime(LocalDateTime.now());
+                scheduleJobTaskMapper.insert(link);
+            }
+            return;
+        }
+        for (int i = 0; i < job.getJobTasks().size(); i++) {
+            ScheduleJobTask link = job.getJobTasks().get(i);
+            link.setId(null);
+            link.setScheduleJobId(job.getId());
+            if (link.getSortOrder() == null) {
+                link.setSortOrder(i);
+            }
+            link.setCreatedBy(job.getCreatedBy() != null ? job.getCreatedBy() : "admin");
+            link.setCreatedTime(LocalDateTime.now());
+            scheduleJobTaskMapper.insert(link);
+        }
+    }
+
+    /**
+     * 在 insert/update 之前: 若 job.taskId 为空，从 jobTasks 第一个回填，兼容旧表 NOT NULL 约束。
+     */
+    private void prefillDirectFieldsFromJobTasks(ScheduleJob job) {
+        if (job.getTaskId() != null) return;
+        List<ScheduleJobTask> tasks = job.getJobTasks();
+        if (tasks != null && !tasks.isEmpty()) {
+            ScheduleJobTask first = tasks.get(0);
+            job.setTaskId(first.getTaskId());
+            job.setTaskVersionId(first.getTaskVersionId());
+        }
     }
 }

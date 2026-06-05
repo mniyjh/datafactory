@@ -23,93 +23,114 @@ public class ExecutionGuard {
     private static final Logger log = LoggerFactory.getLogger(ExecutionGuard.class);
 
     private final ExecutionLogMapper executionLogMapper;
-    private final ConcurrentHashMap<Long, AtomicBoolean> runningTasks = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Long, AtomicLong> acquireTimestamps = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, AtomicBoolean> runningTasks = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, AtomicLong> acquireTimestamps = new ConcurrentHashMap<>();
 
     public ExecutionGuard(ExecutionLogMapper executionLogMapper) {
         this.executionLogMapper = executionLogMapper;
     }
 
-    /**
-     * 尝试获取任务执行权限。
-     */
-    public boolean tryAcquire(Long taskId) {
+    // ============ String key API (多对多, 格式: "jobId:taskId") ============
+
+    public boolean tryAcquire(String key) {
         // Layer 1: 内存 CAS
-        AtomicBoolean flag = runningTasks.computeIfAbsent(taskId, k -> new AtomicBoolean(false));
+        AtomicBoolean flag = runningTasks.computeIfAbsent(key, k -> new AtomicBoolean(false));
         if (!flag.compareAndSet(false, true)) {
-            log.warn("ExecutionGuard: task {} already running (in-memory), skip", taskId);
+            log.warn("ExecutionGuard: key {} already running (in-memory), skip", key);
             return false;
         }
 
-        // Layer 2: DB 查重
-        try {
-            Long runningCount = executionLogMapper.selectCount(
-                    new LambdaQueryWrapper<ExecutionLog>()
-                            .eq(ExecutionLog::getTaskId, taskId)
-                            .eq(ExecutionLog::getStatus, "RUNNING"));
-            if (runningCount != null && runningCount > 0) {
-                log.warn("ExecutionGuard: task {} has {} RUNNING execution(s) in DB, skip", taskId, runningCount);
+        // Layer 2: DB 查重 — 从 key 提取 taskId
+        Long taskId = extractTaskId(key);
+        if (taskId != null) {
+            try {
+                Long runningCount = executionLogMapper.selectCount(
+                        new LambdaQueryWrapper<ExecutionLog>()
+                                .eq(ExecutionLog::getTaskId, taskId)
+                                .eq(ExecutionLog::getStatus, "RUNNING"));
+                if (runningCount != null && runningCount > 0) {
+                    log.warn("ExecutionGuard: task {} has {} RUNNING execution(s) in DB, skip", taskId, runningCount);
+                    flag.set(false);
+                    return false;
+                }
+            } catch (Exception e) {
+                log.error("ExecutionGuard: DB check failed for key {}, releasing lock", key, e);
                 flag.set(false);
                 return false;
             }
-        } catch (Exception e) {
-            log.error("ExecutionGuard: DB check failed for task {}, releasing lock", taskId, e);
-            flag.set(false);
-            return false;
         }
 
-        acquireTimestamps.computeIfAbsent(taskId, k -> new AtomicLong())
+        acquireTimestamps.computeIfAbsent(key, k -> new AtomicLong())
                 .set(System.currentTimeMillis());
         return true;
     }
 
-    /**
-     * 释放任务执行权限。
-     */
-    public void release(Long taskId) {
-        AtomicBoolean flag = runningTasks.get(taskId);
+    public void release(String key) {
+        AtomicBoolean flag = runningTasks.get(key);
         if (flag != null) {
             flag.set(false);
         }
-        AtomicLong ts = acquireTimestamps.get(taskId);
+        AtomicLong ts = acquireTimestamps.get(key);
         if (ts != null) {
             ts.set(0);
         }
     }
 
-    /**
-     * 强制释放（用于 COVER 策略，取消旧执行）。
-     */
-    public void forceRelease(Long taskId) {
-        log.info("ExecutionGuard: force releasing task {}", taskId);
-        release(taskId);
+    public void forceRelease(String key) {
+        log.info("ExecutionGuard: force releasing key {}", key);
+        release(key);
     }
 
     /**
-     * 驱逐超时的执行锁（由 TimeoutGuardScheduler 周期性调用）。
-     * 只驱逐超过 timeoutSeconds 的锁，不在 Guard 内部判断具体秒数。
-     *
-     * @return 被驱逐的 taskId 列表
+     * 驱逐超时的执行锁。
+     * @return 被驱逐的 key 列表
      */
-    public java.util.List<Long> evictStale(long timeoutMs) {
-        java.util.List<Long> evicted = new java.util.ArrayList<>();
+    public java.util.List<String> evictStale(long timeoutMs) {
+        java.util.List<String> evicted = new java.util.ArrayList<>();
         long now = System.currentTimeMillis();
-        acquireTimestamps.forEach((taskId, ts) -> {
+        acquireTimestamps.forEach((key, ts) -> {
             long acquired = ts.get();
             if (acquired > 0 && (now - acquired) > timeoutMs) {
-                forceRelease(taskId);
-                evicted.add(taskId);
+                forceRelease(key);
+                evicted.add(key);
             }
         });
         return evicted;
     }
 
-    /**
-     * 获取某任务的持有时间（ms），0 表示未持有。
-     */
-    public long getHoldDurationMs(Long taskId) {
-        AtomicLong ts = acquireTimestamps.get(taskId);
+    public long getHoldDurationMs(String key) {
+        AtomicLong ts = acquireTimestamps.get(key);
         if (ts == null || ts.get() == 0) return 0;
         return System.currentTimeMillis() - ts.get();
+    }
+
+    // ============ 旧 Long 签名 (向后兼容) ============
+
+    public boolean tryAcquire(Long taskId) {
+        return tryAcquire(String.valueOf(taskId));
+    }
+
+    public void release(Long taskId) {
+        release(String.valueOf(taskId));
+    }
+
+    public void forceRelease(Long taskId) {
+        forceRelease(String.valueOf(taskId));
+    }
+
+    // ============ 辅助 ============
+
+    /**
+     * 从复合 key "jobId:taskId" 中提取 taskId。
+     */
+    private Long extractTaskId(String key) {
+        if (key == null) return null;
+        int idx = key.lastIndexOf(':');
+        String taskIdStr = idx >= 0 ? key.substring(idx + 1) : key;
+        try {
+            return Long.parseLong(taskIdStr);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

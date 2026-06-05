@@ -6,6 +6,7 @@ import com.cqie.datafactory.executor.entity.ExecutionLog;
 import com.cqie.datafactory.executor.schedule.entity.ScheduleJob;
 import com.cqie.datafactory.executor.schedule.entity.ScheduleJobAuditLog;
 import com.cqie.datafactory.executor.schedule.entity.ScheduleJobDailyStats;
+import com.cqie.datafactory.executor.schedule.entity.ScheduleJobTask;
 import com.cqie.datafactory.executor.schedule.mapper.ScheduleJobAuditLogMapper;
 import com.cqie.datafactory.executor.schedule.mapper.ScheduleJobDailyStatsMapper;
 import com.cqie.datafactory.executor.service.ExecutionLogService;
@@ -43,14 +44,26 @@ public class ScheduleJobController {
 
     @GetMapping
     public Result<List<ScheduleJob>> list() {
-        return Result.success(scheduleJobService.list());
+        List<ScheduleJob> jobs = scheduleJobService.list();
+        scheduleJobService.loadJobTasksBatch(jobs);
+        return Result.success(jobs);
     }
 
     @GetMapping("/{id}")
     public Result<ScheduleJob> get(@PathVariable("id") Long id) {
         ScheduleJob job = scheduleJobService.getById(id);
         if (job == null) return Result.fail("定时任务不存在");
+        scheduleJobService.loadJobTasks(job);
         return Result.success(job);
+    }
+
+    /** 查询定时任务关联的所有任务 */
+    @GetMapping("/{id}/tasks")
+    public Result<List<ScheduleJobTask>> getJobTasks(@PathVariable("id") Long id) {
+        ScheduleJob job = scheduleJobService.getById(id);
+        if (job == null) return Result.fail("定时任务不存在");
+        scheduleJobService.loadJobTasks(job);
+        return Result.success(job.getJobTasks());
     }
 
     @PostMapping

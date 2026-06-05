@@ -475,6 +475,11 @@ public class ExecutorTaskServiceImpl extends ServiceImpl<ExecutorTaskMapper, Exe
     }
 
     @Override
+    public long count() {
+        return baseMapper.selectCount(null);
+    }
+
+    @Override
     public void changeStatus(Long id, Integer status) {
         ExecutorTask e = requireTask(id);
         e.setStatus(status);

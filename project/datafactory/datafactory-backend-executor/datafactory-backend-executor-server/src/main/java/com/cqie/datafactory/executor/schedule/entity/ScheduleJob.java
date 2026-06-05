@@ -3,6 +3,7 @@ package com.cqie.datafactory.executor.schedule.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 
 @TableName("schedule_job")
 public class ScheduleJob {
@@ -44,6 +45,10 @@ public class ScheduleJob {
 
     // === 参数配置 ===
     private String paramsConfig;
+
+    /** 多任务关联列表（非数据库字段，需调用 loadJobTasks 后才有值） */
+    @TableField(exist = false)
+    private List<ScheduleJobTask> jobTasks;
 
     // === 原有: 执行追踪 ===
     private String lastExecutionId;
@@ -119,6 +124,9 @@ public class ScheduleJob {
 
     public String getParamsConfig() { return paramsConfig; }
     public void setParamsConfig(String paramsConfig) { this.paramsConfig = paramsConfig; }
+
+    public List<ScheduleJobTask> getJobTasks() { return jobTasks; }
+    public void setJobTasks(List<ScheduleJobTask> jobTasks) { this.jobTasks = jobTasks; }
 
     public String getLastExecutionId() { return lastExecutionId; }
     public void setLastExecutionId(String lastExecutionId) { this.lastExecutionId = lastExecutionId; }
