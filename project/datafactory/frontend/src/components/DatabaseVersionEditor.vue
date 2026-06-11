@@ -74,7 +74,7 @@ const emit = defineEmits(['close', 'save']);
 const testing = ref(false);
 
 const dbTypeOptions = [
-  { label: 'Mysql', value: 'Mysql' },
+  { label: 'MySQL', value: 'MySQL' },
   { label: 'Oracle', value: 'Oracle' },
   { label: 'SQL Server', value: 'SQL Server' },
   { label: 'DB2', value: 'DB2' },
@@ -92,7 +92,7 @@ const dbTypeOptions = [
 ];
 
 const formState = reactive({
-  dbType: 'Mysql',
+  dbType: 'MySQL',
   dbName: '',
   dbDesc: '',
   jdbcUrl: '',
@@ -102,7 +102,7 @@ const formState = reactive({
 
 const applyInitialDsl = () => {
   if (!props.initialDsl) {
-    formState.dbType = 'Mysql';
+    formState.dbType = 'MySQL';
     formState.dbName = '';
     formState.dbDesc = '';
     formState.jdbcUrl = '';
@@ -112,14 +112,14 @@ const applyInitialDsl = () => {
   }
   try {
     const parsed = typeof props.initialDsl === 'string' ? JSON.parse(props.initialDsl) : props.initialDsl;
-    formState.dbType = parsed.dbType || parsed.databaseType || parsed.type || 'Mysql';
+    formState.dbType = parsed.dbType || parsed.databaseType || parsed.type || 'MySQL';
     formState.dbName = parsed.dbName || parsed.name || '';
     formState.dbDesc = parsed.dbDesc || parsed.desc || parsed.description || '';
     formState.jdbcUrl = parsed.jdbcUrl || parsed.url || '';
     formState.username = parsed.username || parsed.userName || parsed.account || '';
     formState.password = parsed.password || parsed.passwd || '';
   } catch {
-    formState.dbType = 'Mysql';
+    formState.dbType = 'MySQL';
     formState.dbName = '';
     formState.dbDesc = '';
     formState.jdbcUrl = '';
