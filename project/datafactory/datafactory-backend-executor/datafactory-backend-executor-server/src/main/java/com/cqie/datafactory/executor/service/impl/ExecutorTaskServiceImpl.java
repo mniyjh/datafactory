@@ -13,6 +13,8 @@ import com.cqie.datafactory.executor.entity.NodeExecutionLog;
 import com.cqie.datafactory.executor.entity.ExecutorTask;
 import com.cqie.datafactory.executor.entity.TaskDslEntity;
 import com.cqie.datafactory.executor.mapper.ExecutorTaskMapper;
+import com.cqie.datafactory.executor.mapper.DataLineageMapper;
+import com.cqie.datafactory.executor.entity.DataLineage;
 import com.cqie.datafactory.executor.service.ExecutionLogService;
 import com.cqie.datafactory.executor.service.ExecutorTaskService;
 import com.cqie.datafactory.executor.service.TaskDslService;
@@ -41,6 +43,7 @@ public class ExecutorTaskServiceImpl extends ServiceImpl<ExecutorTaskMapper, Exe
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbcTemplate;
     private final ExecEngine execEngine;
+    private final DataLineageMapper dataLineageMapper;
     private final org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor taskExecutor;
 
     @Override
@@ -156,6 +159,9 @@ public class ExecutorTaskServiceImpl extends ServiceImpl<ExecutorTaskMapper, Exe
                 logData.setStatus("SUCCESS");
                 logData.setOutputResult(safeWriteJson(finalOutput));
                 finalizeLog(logData);
+
+                // 记录数据血缘
+                recordDataLineage(executionId, id, dsl.getDslContent());
 
             } catch (Exception e) {
                 log.error("Async execution failed for executionId: {}", executionId, e);
@@ -610,5 +616,63 @@ public class ExecutorTaskServiceImpl extends ServiceImpl<ExecutorTaskMapper, Exe
         vo.setCreatedTime(e.getCreatedTime());
         vo.setUpdatedTime(e.getUpdatedTime());
         return vo;
+    }
+
+    /** 从 DSL 中解析节点间的参数引用关系，记录数据血缘 */
+    private void recordDataLineage(String executionId, Long taskId, String dslContent) {
+        try {
+            JsonNode dsl = objectMapper.readTree(dslContent);
+            JsonNode nodes = dsl.get("nodes");
+            if (nodes == null || !nodes.isArray()) return;
+
+            Map<String, JsonNode> nodeMap = new HashMap<>();
+            for (JsonNode n : nodes) {
+                nodeMap.put(n.get("id").asText(), n);
+            }
+            LocalDateTime now = LocalDateTime.now();
+            List<DataLineage> batch = new ArrayList<>();
+
+            for (JsonNode node : nodes) {
+                String targetId = node.get("id").asText();
+                String targetName = node.path("name").asText(targetId);
+                JsonNode inputParams = node.get("inputParams");
+                if (inputParams == null || !inputParams.isArray()) continue;
+
+                for (JsonNode ip : inputParams) {
+                    String sourceType = ip.path("sourceType").asText("");
+                    if (!"UPSTREAM_OUTPUT".equalsIgnoreCase(sourceType)) continue;
+                    JsonNode sourceValue = ip.get("sourceValue");
+                    if (sourceValue == null || sourceValue.isNull()) continue;
+
+                    String sv = sourceValue.isTextual() ? sourceValue.asText() : sourceValue.toString();
+                    String[] parts = sv.contains(".") ? sv.split("\\.", 2) : new String[]{sv, ""};
+                    String sourceNodeId = parts[0];
+                    String paramCode = parts.length > 1 ? parts[1] : ip.path("paramCode").asText("");
+
+                    JsonNode sourceNode = nodeMap.get(sourceNodeId);
+                    String sourceNodeName = sourceNode != null ? sourceNode.path("name").asText(sourceNodeId) : sourceNodeId;
+
+                    DataLineage dl = new DataLineage();
+                    dl.setExecutionId(executionId);
+                    dl.setTaskId(taskId);
+                    dl.setSourceNodeId(sourceNodeId);
+                    dl.setTargetNodeId(targetId);
+                    dl.setSourceNodeName(sourceNodeName);
+                    dl.setTargetNodeName(targetName);
+                    dl.setParamCode(paramCode);
+                    dl.setSourceValue(sv);
+                    dl.setCreatedTime(now);
+                    batch.add(dl);
+                }
+            }
+            if (!batch.isEmpty()) {
+                for (DataLineage dl : batch) {
+                    dataLineageMapper.insert(dl);
+                }
+                log.info("血缘记录完成: executionId={}, 条数={}", executionId, batch.size());
+            }
+        } catch (Exception e) {
+            log.warn("血缘记录失败(不影响执行): {}", e.getMessage());
+        }
     }
 }

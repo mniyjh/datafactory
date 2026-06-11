@@ -478,6 +478,26 @@ CREATE TABLE IF NOT EXISTS schedule_job_daily_stats (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================
+-- 数据血缘追踪表
+-- ============================================================
+CREATE TABLE IF NOT EXISTS data_lineage (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  execution_id VARCHAR(64) NOT NULL COMMENT '执行ID',
+  task_id BIGINT NOT NULL COMMENT '任务ID',
+  source_node_id VARCHAR(64) NOT NULL COMMENT '上游节点ID',
+  target_node_id VARCHAR(64) NOT NULL COMMENT '下游节点ID',
+  source_node_name VARCHAR(128) DEFAULT NULL COMMENT '上游节点名称',
+  target_node_name VARCHAR(128) DEFAULT NULL COMMENT '下游节点名称',
+  param_code VARCHAR(64) NOT NULL COMMENT '参数字段名',
+  source_value VARCHAR(256) DEFAULT NULL COMMENT '来源引用(如 s1.a)',
+  created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_execution_id (execution_id),
+  INDEX idx_task_id (task_id),
+  INDEX idx_source_node (source_node_id),
+  INDEX idx_target_node (target_node_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
 -- 系统内置组件初始化数据
 -- ============================================================
 
