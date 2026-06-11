@@ -14,6 +14,7 @@ public class ApiVersionResolveVO {
     private String authConfig;
     private Integer timeout;
     private Integer retryCount;
+    private String apiType;   // REST/SOAP/GraphQL — 来自 ExternalApi
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -41,4 +42,6 @@ public class ApiVersionResolveVO {
     public void setTimeout(Integer timeout) { this.timeout = timeout; }
     public Integer getRetryCount() { return retryCount; }
     public void setRetryCount(Integer retryCount) { this.retryCount = retryCount; }
+    public String getApiType() { return apiType; }
+    public void setApiType(String apiType) { this.apiType = apiType; }
 }

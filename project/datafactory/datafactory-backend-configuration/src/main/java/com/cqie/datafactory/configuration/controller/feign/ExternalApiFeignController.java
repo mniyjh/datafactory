@@ -54,6 +54,7 @@ public class ExternalApiFeignController {
         vo.setAuthConfig(version.getAuthConfig());
         vo.setTimeout(version.getTimeout());
         vo.setRetryCount(version.getRetryCount());
+        vo.setApiType(api.getApiType());
         return Result.success(vo);
     }
 
@@ -90,6 +91,7 @@ public class ExternalApiFeignController {
         vo.setAuthConfig(version.getAuthConfig());
         vo.setTimeout(version.getTimeout());
         vo.setRetryCount(version.getRetryCount());
+        vo.setApiType(api.getApiType());
         return Result.success(vo);
     }
 }

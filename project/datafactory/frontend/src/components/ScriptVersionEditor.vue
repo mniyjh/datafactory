@@ -54,20 +54,6 @@
                   </a-form-item>
                 </a-col>
               </a-row>
-              <a-row :gutter="16" v-if="isPythonType">
-                <a-col :span="12">
-                  <a-form-item label="最大内存(MB)">
-                    <a-input-number v-model:value="formState.maxMemory" style="width: 100%" :min="64" :max="4096"
-                      :disabled="readonly" />
-                  </a-form-item>
-                </a-col>
-                <a-col :span="12">
-                  <a-form-item label="CPU限制">
-                    <a-input-number v-model:value="formState.cpuLimit" style="width: 100%" :min="0.1" :max="4.0"
-                      :step="0.1" :disabled="readonly" />
-                  </a-form-item>
-                </a-col>
-              </a-row>
             </a-form>
           </div>
         </div>

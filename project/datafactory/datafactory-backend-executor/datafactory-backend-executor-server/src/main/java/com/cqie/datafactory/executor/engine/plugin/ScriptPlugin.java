@@ -74,6 +74,12 @@ public class ScriptPlugin implements ComponentPlugin {
         String workDir = version.getWorkDir() != null ? version.getWorkDir() : "";
         String envVarsJson = version.getEnvVars();
         Map<String, String> scriptEnvVars = parseEnvVars(envVarsJson);
+        // 注入 dependencies 供 Python gRPC Server 安装
+        String dependenciesJson = version.getDependencies();
+        if (dependenciesJson != null && !dependenciesJson.isBlank()) {
+            scriptEnvVars = new HashMap<>(scriptEnvVars);
+            scriptEnvVars.put("_DF_DEPENDENCIES", dependenciesJson);
+        }
 
         try {
             if ("SQL".equals(scriptType)) {

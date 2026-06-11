@@ -20,6 +20,7 @@ import tempfile
 import argparse
 import traceback
 import importlib.util
+import subprocess
 from concurrent import futures
 
 import grpc
@@ -42,6 +43,20 @@ class PythonExecutorServicer(executor_pb2_grpc.PythonExecutorServicer):
         module_name = f"exec_script_{int(start_time)}"
 
         try:
+            # 安装脚本依赖（通过 _DF_DEPENDENCIES 环境变量传入）
+            deps_json = input_params.pop("_DF_DEPENDENCIES", None)
+            if deps_json:
+                try:
+                    deps = json.loads(deps_json)
+                    if isinstance(deps, list) and deps:
+                        print(f"[DF] Installing dependencies: {deps}", file=sys.stderr)
+                        subprocess.check_call(
+                            [sys.executable, "-m", "pip", "install", "--quiet"] + deps,
+                            timeout=300,
+                        )
+                except (json.JSONDecodeError, subprocess.CalledProcessError) as e:
+                    print(f"[DF] Dependency install failed: {e}", file=sys.stderr)
+
             # 将脚本写入临时文件
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".py", delete=False, encoding="utf-8"

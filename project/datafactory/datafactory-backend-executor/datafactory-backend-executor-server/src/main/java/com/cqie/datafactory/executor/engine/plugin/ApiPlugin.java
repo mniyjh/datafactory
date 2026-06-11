@@ -38,7 +38,7 @@ public class ApiPlugin implements ComponentPlugin {
         if (method.isBlank()) method = "POST";
 
         if (!url.isBlank()) {
-            return doHttpCall(url, method, context.getResolvedInputs(), null, null, null, null, 30);
+            return doHttpCall(url, method, context.getResolvedInputs(), null, null, null, null, 30, null);
         }
 
         String apiCode = readFieldValue(fieldValues, "apiCode", "api_code");
@@ -99,7 +99,8 @@ public class ApiPlugin implements ComponentPlugin {
 
         return doHttpCall(api.getRequestUrl(), httpMethod, requestBody, headers,
                 api.getContentType(), api.getQueryParams(),
-                buildAuthHeaders(api.getAuthType(), api.getAuthConfig()), timeout);
+                buildAuthHeaders(api.getAuthType(), api.getAuthConfig()), timeout,
+                api.getApiType());
     }
 
     /**
@@ -143,8 +144,9 @@ public class ApiPlugin implements ComponentPlugin {
     private Map<String, Object> doHttpCall(String url, String method, Map<String, Object> requestBody,
                                            Map<String, Object> customHeaders, String contentType,
                                            String queryParams, Map<String, String> authHeaders,
-                                           int timeoutSec) {
+                                           int timeoutSec, String apiType) {
         HttpMethod httpMethod = HttpMethod.valueOf(method.toUpperCase(Locale.ROOT));
+        String type = apiType != null ? apiType.toUpperCase() : "REST";
 
         // 拼接 query params 到 URL
         URI uri;
@@ -155,9 +157,7 @@ public class ApiPlugin implements ComponentPlugin {
                 if (qpNode.isObject()) {
                     qpNode.fields().forEachRemaining(e -> builder.queryParam(e.getKey(), e.getValue().asText("")));
                 }
-            } catch (Exception e) {
-                // queryParams 解析失败，使用原始 URL
-            }
+            } catch (Exception e) {}
             uri = builder.build(true).toUri();
         } else {
             uri = URI.create(url);
@@ -165,8 +165,21 @@ public class ApiPlugin implements ComponentPlugin {
 
         // 构建 headers
         HttpHeaders httpHeaders = new HttpHeaders();
-        String ct = (contentType != null && !contentType.isBlank()) ? contentType : "application/json";
-        httpHeaders.setContentType(MediaType.parseMediaType(ct));
+
+        // 根据协议类型设置 Content-Type 和 body
+        Object body;
+        if ("SOAP".equals(type)) {
+            httpHeaders.setContentType(MediaType.TEXT_XML);
+            httpHeaders.set("SOAPAction", url);
+            body = buildSoapEnvelope(requestBody);
+        } else if ("GRAPHQL".equals(type)) {
+            httpHeaders.setContentType(MediaType.APPLICATION_JSON);
+            body = buildGraphQLBody(requestBody);
+        } else {
+            String ct = (contentType != null && !contentType.isBlank()) ? contentType : "application/json";
+            httpHeaders.setContentType(MediaType.parseMediaType(ct));
+            body = requestBody != null ? requestBody : new HashMap<>();
+        }
 
         if (customHeaders != null) {
             customHeaders.forEach((k, v) -> httpHeaders.set(k, Objects.toString(v, "")));
@@ -175,12 +188,10 @@ public class ApiPlugin implements ComponentPlugin {
             authHeaders.forEach(httpHeaders::set);
         }
 
-        HttpEntity<Map<String, Object>> request = new HttpEntity<>(
-                requestBody != null ? requestBody : new HashMap<>(), httpHeaders);
+        HttpEntity<Object> request = new HttpEntity<>(body, httpHeaders);
 
-        // 构建带超时的 RestTemplate
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(Math.min(timeoutSec, 10)));  // 连接超时最多10秒
+        factory.setConnectTimeout(Duration.ofSeconds(Math.min(timeoutSec, 10)));
         factory.setReadTimeout(Duration.ofSeconds(timeoutSec));
         RestTemplate rt = new RestTemplate(factory);
 
@@ -190,6 +201,27 @@ public class ApiPlugin implements ComponentPlugin {
         result.put("statusCode", response.getStatusCode().value());
         result.put("body", response.getBody());
         return result;
+    }
+
+    private String buildSoapEnvelope(Map<String, Object> body) {
+        try {
+            String bodyXml = objectMapper.writeValueAsString(body);
+            return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
+                   "<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\">" +
+                   "<soap:Body>" + bodyXml + "</soap:Body></soap:Envelope>";
+        } catch (Exception e) {
+            return "<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Body/></soap:Envelope>";
+        }
+    }
+
+    private Map<String, Object> buildGraphQLBody(Map<String, Object> params) {
+        Map<String, Object> gql = new HashMap<>();
+        gql.put("query", params.getOrDefault("query", params.getOrDefault("_query", "")));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> variables = (Map<String, Object>) params.getOrDefault("variables",
+                params.getOrDefault("_variables", new HashMap<>()));
+        gql.put("variables", variables);
+        return gql;
     }
 
     private String readFieldValue(JsonNode fieldValues, String... keys) {

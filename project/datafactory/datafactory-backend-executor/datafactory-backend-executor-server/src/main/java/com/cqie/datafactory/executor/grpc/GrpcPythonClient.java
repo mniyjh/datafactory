@@ -62,13 +62,19 @@ public class GrpcPythonClient {
                                         Map<String, String> inputParams,
                                         int timeoutSeconds, String workDir,
                                         Map<String, String> envVars) {
+        Map<String, String> mergedEnv = new HashMap<>(envVars != null ? envVars : Map.of());
+        // 透传脚本依赖: Python Server 端用 _DF_DEPENDENCIES 识别并 pip install
+        if (envVars != null && envVars.containsKey("_DF_DEPENDENCIES")) {
+            mergedEnv.put("_DF_DEPENDENCIES", envVars.get("_DF_DEPENDENCIES"));
+        }
+
         var builder = ExecuteRequest.newBuilder()
                 .setScriptContent(scriptContent)
                 .setScriptType(scriptType != null ? scriptType : "PYTHON")
                 .putAllInputParams(inputParams != null ? inputParams : Map.of())
                 .setTimeoutSeconds(timeoutSeconds)
                 .setWorkDir(workDir != null ? workDir : "")
-                .putAllEnvVars(envVars != null ? envVars : Map.of());
+                .putAllEnvVars(mergedEnv);
         if (className != null && !className.isBlank()) {
             builder.setClassName(className);
         }
