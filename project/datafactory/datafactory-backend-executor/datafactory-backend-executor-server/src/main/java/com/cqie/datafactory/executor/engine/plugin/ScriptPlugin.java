@@ -139,16 +139,17 @@ public class ScriptPlugin implements ComponentPlugin {
             }
 
             // SHELL 脚本本地子进程执行
-            String fileExt = "PYTHON".equals(scriptType) ? ".py" : ".sh";
+            boolean isWin = System.getProperty("os.name").toLowerCase().contains("win");
+            String fileExt = "PYTHON".equals(scriptType) ? ".py" : (isWin ? ".bat" : ".sh");
             String interpreter = "SHELL".equals(scriptType)
-                    ? (System.getProperty("os.name").toLowerCase().contains("win") ? "cmd" : "bash")
+                    ? (isWin ? "cmd" : "bash")
                     : interpreterPath;
 
             Path tempScript = Files.createTempFile("df-script-", fileExt);
             Files.writeString(tempScript, scriptContent, StandardCharsets.UTF_8);
 
             ProcessBuilder pb;
-            if ("SHELL".equals(scriptType) && System.getProperty("os.name").toLowerCase().contains("win")) {
+            if ("SHELL".equals(scriptType) && isWin) {
                 pb = new ProcessBuilder(interpreter, "/c", tempScript.toAbsolutePath().toString());
             } else {
                 pb = new ProcessBuilder(interpreter, tempScript.toAbsolutePath().toString());
