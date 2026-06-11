@@ -6,8 +6,8 @@ spring:
     name: datafactory-backend-executor-server
   datasource:
     url: jdbc:mysql://127.0.0.1:3306/datafactory?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
-    username: root
-    password: 123456
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
   mail:
     host: smtp.qq.com
