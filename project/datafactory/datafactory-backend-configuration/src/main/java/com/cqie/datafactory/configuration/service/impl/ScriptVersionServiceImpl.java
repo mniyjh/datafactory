@@ -7,9 +7,11 @@ import com.cqie.datafactory.configuration.controller.vo.ScriptVersionVO;
 import com.cqie.datafactory.configuration.entity.ScriptVersion;
 import com.cqie.datafactory.configuration.mapper.ScriptVersionMapper;
 import com.cqie.datafactory.configuration.service.ScriptVersionService;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.annotation.Resource;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -23,6 +25,9 @@ import java.util.stream.Collectors;
 
 @Service
 public class ScriptVersionServiceImpl extends ServiceImpl<ScriptVersionMapper, ScriptVersion> implements ScriptVersionService {
+
+    @Resource
+    private JdbcTemplate jdbcTemplate;
 
     @Override
     public List<ScriptVersionVO> listVersions(Long scriptId, String environment) {
@@ -176,10 +181,32 @@ public class ScriptVersionServiceImpl extends ServiceImpl<ScriptVersionMapper, S
         }
         Map<String, Object> result = new HashMap<>();
         try {
-            Path temp = Files.createTempFile("df-test-", ".py");
-            Files.writeString(temp, code, StandardCharsets.UTF_8);
-            String interpreter = version.getInterpreterPath() != null ? version.getInterpreterPath() : "python";
-            ProcessBuilder pb = new ProcessBuilder(interpreter, temp.toAbsolutePath().toString());
+            boolean isWin = System.getProperty("os.name").toLowerCase().contains("win");
+            String scriptType = getScriptType(version.getScriptId());
+            boolean isShell = "SHELL".equalsIgnoreCase(scriptType);
+
+            String fileExt = isShell ? (isWin ? ".bat" : ".sh") : ".py";
+            String content = code;
+            if (isShell && isWin && !code.startsWith("@echo off")) {
+                content = "@echo off\r\nchcp 65001 >nul 2>&1\r\n" + code;
+            }
+
+            Path temp = Files.createTempFile("df-test-", fileExt);
+            Files.writeString(temp, content, StandardCharsets.UTF_8);
+
+            String interpreter;
+            if (isShell && isWin) {
+                interpreter = "cmd";
+            } else {
+                interpreter = version.getInterpreterPath() != null ? version.getInterpreterPath() : "python";
+            }
+
+            ProcessBuilder pb;
+            if (isShell && isWin) {
+                pb = new ProcessBuilder("cmd", "/q", "/c", temp.toAbsolutePath().toString());
+            } else {
+                pb = new ProcessBuilder(interpreter, temp.toAbsolutePath().toString());
+            }
             pb.redirectErrorStream(false);
             int timeout = version.getTimeout() != null ? version.getTimeout() : 30;
             Process process = pb.start();
@@ -214,6 +241,16 @@ public class ScriptVersionServiceImpl extends ServiceImpl<ScriptVersionMapper, S
             result.put("error", e.getMessage());
         }
         return result;
+    }
+
+    private String getScriptType(Long scriptId) {
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT script_type FROM script WHERE id = ?", scriptId);
+            return rows.isEmpty() ? "PYTHON" : String.valueOf(rows.get(0).get("script_type"));
+        } catch (Exception e) {
+            return "PYTHON";
+        }
     }
 
     private ScriptVersionVO toVO(ScriptVersion entity) {
