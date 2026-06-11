@@ -9,6 +9,21 @@ spring:
     username: root
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
+  mail:
+    host: smtp.qq.com
+    port: 465
+    username: 1106935659@qq.com
+    password: tlqyxryzvnlribfg
+    protocol: smtps
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          starttls:
+            enable: true
+            required: true
   cloud:
     openfeign:
       client:
