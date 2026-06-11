@@ -140,16 +140,19 @@ public class ScriptPlugin implements ComponentPlugin {
 
             // SHELL 脚本本地子进程执行
             boolean isWin = System.getProperty("os.name").toLowerCase().contains("win");
+            boolean isShell = "SHELL".equals(scriptType);
             String fileExt = "PYTHON".equals(scriptType) ? ".py" : (isWin ? ".bat" : ".sh");
-            String interpreter = "SHELL".equals(scriptType)
-                    ? (isWin ? "cmd" : "bash")
-                    : interpreterPath;
+            String interpreter = isShell ? (isWin ? "cmd" : "bash") : interpreterPath;
+
+            // Windows .bat 自动加 @echo off 避免输出回显
+            String contentToWrite = (isShell && isWin && !scriptContent.startsWith("@echo off"))
+                    ? "@echo off\r\n" + scriptContent : scriptContent;
 
             Path tempScript = Files.createTempFile("df-script-", fileExt);
-            Files.writeString(tempScript, scriptContent, StandardCharsets.UTF_8);
+            Files.writeString(tempScript, contentToWrite, StandardCharsets.UTF_8);
 
             ProcessBuilder pb;
-            if ("SHELL".equals(scriptType) && isWin) {
+            if (isShell && isWin) {
                 pb = new ProcessBuilder(interpreter, "/c", tempScript.toAbsolutePath().toString());
             } else {
                 pb = new ProcessBuilder(interpreter, tempScript.toAbsolutePath().toString());
