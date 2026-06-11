@@ -26,5 +26,35 @@ services:
       - "8848:8848"
       - "9848:9848"
 
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: datafactory-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: datafactory-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana-datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
+      - ./config/grafana-dashboard.yml:/etc/grafana/provisioning/dashboards/dashboard.yml
+      - ./docs/grafana-dashboard.json:/etc/grafana/provisioning/dashboards/datafactory.json
+
 volumes:
   mysql-data:
+  prometheus-data:
+  grafana-data:
