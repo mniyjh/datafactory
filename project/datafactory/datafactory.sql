@@ -541,3 +541,26 @@ INSERT IGNORE INTO component_field (component_id, field_code, field_name, value_
 (8, 'subTaskId', '选择子任务', 'STRING', 'MULTI_SELECT', '{"optionsSource":{"sourceType":"TASK"}}', 1, 1, '从任务管理中选择已发布到生产环境的任务'),
 (8, 'result_var', '结果变量', 'STRING', 'TEXTAREA', NULL, 0, 2, '子任务结果绑定的变量名');
 
+-- ============================================================
+-- 系统内置组件输入输出参数
+-- ============================================================
+
+-- 数据库查询（数据接入）输出参数
+INSERT IGNORE INTO component_io_param (component_id, io_type, param_code, param_name, data_type, required_flag, source_type, param_space, sort_order, description) VALUES
+(3, 'OUTPUT', 'rows', '查询结果', 'JSON', 0, 'CONST', 'NODE', 1, 'SQL查询返回的行数据，JSON数组格式'),
+(3, 'OUTPUT', 'rowCount', '结果行数', 'NUMBER', 0, 'CONST', 'NODE', 2, '查询返回的总行数'),
+(3, 'OUTPUT', 'exitCode', '退出码', 'NUMBER', 0, 'CONST', 'NODE', 3, '执行状态码，0=成功');
+
+-- PYTHON执行器（数据处理）输出参数
+INSERT IGNORE INTO component_io_param (component_id, io_type, param_code, param_name, data_type, required_flag, source_type, param_space, sort_order, description) VALUES
+(5, 'OUTPUT', 'result', '执行结果', 'JSON', 0, 'CONST', 'NODE', 1, 'Python脚本stdout解析后的JSON结果'),
+(5, 'OUTPUT', 'stdout', '标准输出', 'STRING', 0, 'CONST', 'NODE', 2, '脚本标准输出原始文本'),
+(5, 'OUTPUT', 'exitCode', '退出码', 'NUMBER', 0, 'CONST', 'NODE', 3, '执行状态码，0=成功');
+
+-- Shell执行器（数据处理）输出参数
+INSERT IGNORE INTO component_io_param (component_id, io_type, param_code, param_name, data_type, required_flag, source_type, param_space, sort_order, description) VALUES
+(9, 'OUTPUT', 'result', '执行结果', 'STRING', 0, 'CONST', 'NODE', 1, 'Shell脚本stdout文本内容'),
+(9, 'OUTPUT', 'stdout', '标准输出', 'STRING', 0, 'CONST', 'NODE', 2, '脚本标准输出原始文本'),
+(9, 'OUTPUT', 'stderr', '标准错误', 'STRING', 0, 'CONST', 'NODE', 3, '脚本错误输出'),
+(9, 'OUTPUT', 'exitCode', '退出码', 'NUMBER', 0, 'CONST', 'NODE', 4, '执行状态码，0=成功');
+
