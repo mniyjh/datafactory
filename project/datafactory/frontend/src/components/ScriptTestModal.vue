@@ -28,7 +28,7 @@
           <div v-if="!executed && !executing" class="placeholder">点击「执行」按钮开始测试</div>
 
           <div v-if="executing" class="status-banner running">
-            <LoadingOutlined spin /> Python脚本执行中...
+            <LoadingOutlined spin /> {{ scriptTypeLabel }}脚本执行中...
           </div>
 
           <div v-if="executed && !executing" class="status-banner" :class="resultSuccess ? 'success' : 'failure'">
@@ -57,7 +57,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { message } from 'ant-design-vue';
 import { LoadingOutlined } from '@ant-design/icons-vue';
 import { scriptApi } from '../api/scriptApi';
@@ -81,6 +81,13 @@ const langColor = (t) => {
   return map[(t || '').toUpperCase()] || 'default';
 };
 
+const scriptTypeLabel = computed(() => {
+  const t = (props.versionData?.type || '').toUpperCase();
+  if (t === 'SQL') return 'SQL';
+  if (t === 'SHELL') return 'Shell';
+  return 'Python';
+});
+
 const formatInput = () => {
   try {
     const obj = JSON.parse(inputJson.value);
@@ -101,9 +108,9 @@ const handleExecute = async () => {
     resultSuccess.value = data.success === true || data.exitCode === 0;
     executed.value = true;
     if (resultSuccess.value) {
-      message.success('Python脚本执行完成');
+      message.success(`${scriptTypeLabel.value}脚本执行完成`);
     } else {
-      message.error(data.error || data.stderr || 'Python脚本执行返回非零退出码');
+      message.error(data.error || data.stderr || `${scriptTypeLabel.value}脚本执行返回非零退出码`);
     }
   } catch (e) {
     resultData.value = { error: e.message };
