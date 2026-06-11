@@ -145,15 +145,20 @@ public class ScriptPlugin implements ComponentPlugin {
             String interpreter = isShell ? (isWin ? "cmd" : "bash") : interpreterPath;
 
             // Windows .bat 自动加 @echo off 避免输出回显
-            String contentToWrite = (isShell && isWin && !scriptContent.startsWith("@echo off"))
-                    ? "@echo off\r\n" + scriptContent : scriptContent;
+            String contentToWrite;
+            if (isShell && isWin) {
+                // Windows BAT: 切 UTF-8 + 关闭回显，避免 CMD 乱码和路径回显
+                contentToWrite = "@echo off\r\nchcp 65001 >nul 2>&1\r\n" + scriptContent;
+            } else {
+                contentToWrite = scriptContent;
+            }
 
             Path tempScript = Files.createTempFile("df-script-", fileExt);
             Files.writeString(tempScript, contentToWrite, StandardCharsets.UTF_8);
 
             ProcessBuilder pb;
             if (isShell && isWin) {
-                pb = new ProcessBuilder(interpreter, "/c", tempScript.toAbsolutePath().toString());
+                pb = new ProcessBuilder("cmd", "/q", "/c", tempScript.toAbsolutePath().toString());
             } else {
                 pb = new ProcessBuilder(interpreter, tempScript.toAbsolutePath().toString());
             }
