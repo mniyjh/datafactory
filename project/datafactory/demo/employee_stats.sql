@@ -1,12 +1,9 @@
--- 员工统计 SQL — 对脚本管理中的测试表做简单聚合
+-- 员工统计 SQL — 按类型筛选脚本
 -- 组件: COMP_DB_QUERY
--- 输入: 无（纯查询）
+-- 输入参数: scriptType（从上游 START 传入）
 -- 输出: rows + rowCount
-SELECT
-  COUNT(*) AS total_scripts,
-  MAX(created_time) AS latest_created,
-  script_type
+SELECT id, script_code, script_name, script_type, created_time
 FROM script
 WHERE status = 1
-GROUP BY script_type
-ORDER BY script_type;
+  AND script_type = #{scriptType}
+ORDER BY created_time DESC;

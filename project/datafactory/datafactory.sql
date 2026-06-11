@@ -541,30 +541,3 @@ INSERT IGNORE INTO component_field (component_id, field_code, field_name, value_
 (8, 'subTaskId', '选择子任务', 'STRING', 'MULTI_SELECT', '{"optionsSource":{"sourceType":"TASK"}}', 1, 1, '从任务管理中选择已发布到生产环境的任务'),
 (8, 'result_var', '结果变量', 'STRING', 'TEXTAREA', NULL, 0, 2, '子任务结果绑定的变量名');
 
--- ============================================================
--- 系统内置组件 IO 参数
--- ============================================================
--- START 节点 (1): 入口参数
-INSERT IGNORE INTO component_io_param (component_id, io_type, param_code, param_name, data_type, required_flag, source_type, param_space, sort_order, description) VALUES
-(1, 'INPUT',  'data',     '输入数据',  'JSON',   0, 'UPSTREAM_OUTPUT', 'TASK', 1, '上游或外部传入的数据（可为空）'),
-(1, 'OUTPUT', 'data',     '输入数据',  'JSON',   0, 'CONST',           'TASK', 1, '与输入同步，传递到下游');
-
--- END 节点 (2): 自动汇总
-INSERT IGNORE INTO component_io_param (component_id, io_type, param_code, param_name, data_type, required_flag, source_type, param_space, sort_order, description) VALUES
-(2, 'INPUT',  'upstream', '上游汇总',  'JSON',   0, 'UPSTREAM_OUTPUT', 'NODE', 1, '自动汇总所有上游节点输出'),
-(2, 'OUTPUT', 'upstream', '上游汇总',  'JSON',   0, 'UPSTREAM_OUTPUT', 'NODE', 1, '与输入同步，作为任务最终结果');
-
--- COMP_DB_QUERY (3): SQL 执行结果
-INSERT IGNORE INTO component_io_param (component_id, io_type, param_code, param_name, data_type, required_flag, source_type, param_space, sort_order, description) VALUES
-(3, 'INPUT',  'params',   '查询参数',  'JSON',   0, 'UPSTREAM_OUTPUT', 'NODE', 1, '传入参数合并到脚本 stdin（可为空）'),
-(3, 'OUTPUT', 'rows',     '查询结果集', 'JSON',   0, 'UPSTREAM_OUTPUT', 'NODE', 1, 'SQL 查询返回的行数据'),
-(3, 'OUTPUT', 'rowCount', '结果行数',   'NUMBER', 0, 'UPSTREAM_OUTPUT', 'NODE', 2, '查询返回的总行数');
-
--- COMP_SHELL_EXECUTOR (9): Shell 执行结果
-INSERT IGNORE INTO component_io_param (component_id, io_type, param_code, param_name, data_type, required_flag, source_type, param_space, sort_order, description) VALUES
-(9, 'INPUT',  'params',   '输入参数',  'JSON',   0, 'UPSTREAM_OUTPUT', 'NODE', 1, '上游输出合并为 JSON 传入 Shell 脚本 stdin'),
-(9, 'OUTPUT', 'exitCode', '退出码',    'NUMBER', 0, 'UPSTREAM_OUTPUT', 'NODE', 1, '进程退出码，0=成功'),
-(9, 'OUTPUT', 'stdout',   '标准输出',  'STRING', 0, 'UPSTREAM_OUTPUT', 'NODE', 2, 'Shell 标准输出内容'),
-(9, 'OUTPUT', 'stderr',   '标准错误',  'STRING', 0, 'UPSTREAM_OUTPUT', 'NODE', 3, 'Shell 错误输出内容'),
-(9, 'OUTPUT', 'result',   '执行结果',  'STRING', 0, 'UPSTREAM_OUTPUT', 'NODE', 4, '与 stdout 相同，方便下游引用');
-

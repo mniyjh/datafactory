@@ -47,7 +47,10 @@ public class DbPlugin implements ComponentPlugin {
             execTemplate = buildDynamicTemplate(dbCode, context.getEnvironment());
         }
 
-        // 3. 执行
+        // 3. 替换 SQL 中的 ${param} / #{param} 占位符
+        sql = resolveSqlPlaceholders(sql, context.getResolvedInputs());
+
+        // 4. 执行
         List<Map<String, Object>> rows = execTemplate.queryForList(sql);
         Map<String, Object> result = new HashMap<>();
         result.put("rows", rows);
@@ -93,6 +96,30 @@ public class DbPlugin implements ComponentPlugin {
             if (sqlFromInput != null) sql = Objects.toString(sqlFromInput, "");
         }
         return sql;
+    }
+
+    /**
+     * 替换 SQL 中的 ${param} 或 #{param} 占位符为上游传入的参数值。
+     * 数字类型直接拼接，字符串类型加单引号（防注入：仅允许字母数字下划线中文）。
+     */
+    private String resolveSqlPlaceholders(String sql, Map<String, Object> params) {
+        if (params == null || params.isEmpty()) return sql;
+        String result = sql;
+        for (Map.Entry<String, Object> e : params.entrySet()) {
+            String key = e.getKey();
+            Object val = e.getValue();
+            if (val == null) continue;
+            String replacement;
+            if (val instanceof Number) {
+                replacement = val.toString();
+            } else {
+                String str = val.toString().replace("'", "''");
+                replacement = "'" + str + "'";
+            }
+            result = result.replace("${" + key + "}", replacement);
+            result = result.replace("#{" + key + "}", replacement);
+        }
+        return result;
     }
 
     private JdbcTemplate buildDynamicTemplate(String dbCode, String environment) {
