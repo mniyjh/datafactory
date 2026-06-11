@@ -15,6 +15,7 @@ import com.cqie.datafactory.executor.entity.TaskDslEntity;
 import com.cqie.datafactory.executor.mapper.ExecutorTaskMapper;
 import com.cqie.datafactory.executor.mapper.DataLineageMapper;
 import com.cqie.datafactory.executor.entity.DataLineage;
+import com.cqie.datafactory.executor.metrics.TaskMetrics;
 import com.cqie.datafactory.executor.service.ExecutionLogService;
 import com.cqie.datafactory.executor.service.ExecutorTaskService;
 import com.cqie.datafactory.executor.service.TaskDslService;
@@ -44,6 +45,7 @@ public class ExecutorTaskServiceImpl extends ServiceImpl<ExecutorTaskMapper, Exe
     private final JdbcTemplate jdbcTemplate;
     private final ExecEngine execEngine;
     private final DataLineageMapper dataLineageMapper;
+    private final TaskMetrics taskMetrics;
     private final org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor taskExecutor;
 
     @Override
@@ -87,6 +89,7 @@ public class ExecutorTaskServiceImpl extends ServiceImpl<ExecutorTaskMapper, Exe
         // 3. 生成执行ID并准备异步执行
         String executionId = "exec_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
 
+        long[] startMsHolder = new long[1];
         taskExecutor.execute(() -> {
             try {
                 // 创建并保存开始执行日志
@@ -103,6 +106,7 @@ public class ExecutorTaskServiceImpl extends ServiceImpl<ExecutorTaskMapper, Exe
                 }
                 logData.setStartTime(LocalDateTime.now());
                 logData.setCreatedBy("admin");
+                startMsHolder[0] = System.currentTimeMillis();
                 try {
                     logData.setInputParams(objectMapper.writeValueAsString(mergedParams));
                 } catch (Exception ignored) {
@@ -162,9 +166,11 @@ public class ExecutorTaskServiceImpl extends ServiceImpl<ExecutorTaskMapper, Exe
 
                 // 记录数据血缘
                 recordDataLineage(executionId, id, dsl.getDslContent());
+                taskMetrics.recordSuccess(System.currentTimeMillis() - startMsHolder[0]);
 
             } catch (Exception e) {
                 log.error("Async execution failed for executionId: {}", executionId, e);
+                taskMetrics.recordFailure(System.currentTimeMillis() - startMsHolder[0]);
                 markExecutionFailed(executionId, e);
             }
         });
