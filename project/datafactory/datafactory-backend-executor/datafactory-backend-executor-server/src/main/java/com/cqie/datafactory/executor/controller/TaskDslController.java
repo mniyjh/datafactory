@@ -77,6 +77,12 @@ public class TaskDslController {
         return Result.success();
     }
 
+    @PostMapping("/version/{id}/rollback")
+    public Result<Void> rollbackVersion(@PathVariable("id") Long versionId) {
+        taskDslService.rollbackToPrev(versionId);
+        return Result.success();
+    }
+
     @GetMapping("/{taskId}/versions")
     public Result<List<TaskDslVO>> versions(@PathVariable("taskId") Long taskId, @RequestParam(value = "environment", required = false) String environment) {
         return Result.success(taskDslService.listByTaskAndEnv(taskId, environment));
