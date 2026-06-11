@@ -180,9 +180,27 @@ public class ScriptVersionServiceImpl extends ServiceImpl<ScriptVersionMapper, S
             throw new RuntimeException("脚本内容为空");
         }
         Map<String, Object> result = new HashMap<>();
+        String scriptType = getScriptType(version.getScriptId());
+
+        // SQL 脚本走 JdbcTemplate，不走进程
+        if ("SQL".equalsIgnoreCase(scriptType)) {
+            try {
+                List<Map<String, Object>> rows = jdbcTemplate.queryForList(code);
+                result.put("success", true);
+                result.put("exitCode", 0);
+                result.put("stdout", "ok, rows=" + rows.size());
+                result.put("rows", rows);
+                result.put("rowCount", rows.size());
+            } catch (Exception e) {
+                result.put("success", false);
+                result.put("exitCode", -1);
+                result.put("stderr", e.getMessage());
+            }
+            return result;
+        }
+
         try {
             boolean isWin = System.getProperty("os.name").toLowerCase().contains("win");
-            String scriptType = getScriptType(version.getScriptId());
             boolean isShell = "SHELL".equalsIgnoreCase(scriptType);
 
             String fileExt = isShell ? (isWin ? ".bat" : ".sh") : ".py";
