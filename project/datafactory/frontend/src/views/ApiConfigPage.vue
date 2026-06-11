@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap" ref="pageRoot">
     <div class="toolbar">
       <span class="keyword-label">关键字：</span>
       <a-input v-model:value="keyword" placeholder="请输入API名称和编码" />
@@ -37,7 +37,7 @@
       </template>
     </a-table>
 
-    <a-modal v-model:open="formVisible" :title="isEdit ? '编辑API' : '新建API'" :width="760" :footer="null" destroyOnClose>
+    <a-modal v-model:open="formVisible" :title="isEdit ? '编辑API' : '新建API'" :width="760" :footer="null" destroyOnClose :getContainer="() => pageRoot">
       <a-form ref="formRef" :model="formState" :rules="formRules" :label-col="{ style: { width: '130px' } }" class="api-form">
         <a-form-item label="API编码" required name="code">
           <a-input v-model:value="formState.code" :disabled="isEdit" placeholder="例如：API_WEATHER_001" />
@@ -69,7 +69,7 @@
       </div>
     </a-modal>
 
-    <a-modal v-model:open="detailVisible" title="API详情" :width="760" :footer="null" destroyOnClose>
+    <a-modal v-model:open="detailVisible" title="API详情" :width="760" :footer="null" destroyOnClose :getContainer="() => pageRoot">
       <a-descriptions bordered :column="1" size="middle">
         <a-descriptions-item label="ID">{{ detailRow.id }}</a-descriptions-item>
         <a-descriptions-item label="编码">{{ detailRow.code }}</a-descriptions-item>
@@ -97,6 +97,7 @@
       :keyboard="false"
       destroyOnClose
       wrap-class-name="env-modal-fixed"
+      :getContainer="() => pageRoot"
     >
       <div class="env-modal-body">
         <a-tabs v-model:activeKey="activeEnvTab" @change="handleEnvTabChange">
@@ -148,7 +149,7 @@
       </div>
     </a-modal>
 
-    <a-modal v-model:open="testResultVisible" title="API连通测试结果" :width="920" :footer="null" :centered="true" destroyOnClose wrap-class-name="result-modal-fixed">
+    <a-modal v-model:open="testResultVisible" title="API连通测试结果" :width="920" :footer="null" :centered="true" destroyOnClose wrap-class-name="result-modal-fixed" :getContainer="() => pageRoot">
       <div class="result-modal-body">
         <a-descriptions bordered :column="1" size="middle">
           <a-descriptions-item label="版本">{{ testResult.version }}</a-descriptions-item>
@@ -202,12 +203,14 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'ApiConfigPage' })
 import { computed, reactive, ref, onMounted } from 'vue';
 import { message } from 'ant-design-vue';
 import ApiVersionEditor from '../components/ApiVersionEditor.vue';
 import { externalApi } from '../api/externalApi';
 
 const keyword = ref('');
+const pageRoot = ref(null);
 const loading = ref(false);
 const formVisible = ref(false);
 const formRef = ref();

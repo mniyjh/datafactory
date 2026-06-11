@@ -22,7 +22,7 @@
       "id": "sc1",
       "type": "SCRIPT",
       "name": "加法脚本",
-      "componentCode": "COMP_SCRIPT",
+      "componentCode": "COMP_PYTHON_EXECUTOR",
       "componentId": 5,
       "position": {"x": 340, "y": 200},
       "fieldValues": {

@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap" ref="pageRoot">
     <div class="toolbar">
       <span class="keyword-label">关键字：</span>
       <a-input v-model:value="keyword" placeholder="请输入脚本名称和编码" />
@@ -31,7 +31,7 @@
       </template>
     </a-table>
 
-    <a-modal v-model:open="formVisible" :title="isEdit ? '编辑脚本' : '新建脚本'" :width="760" :footer="null" destroyOnClose>
+    <a-modal v-model:open="formVisible" :title="isEdit ? '编辑脚本' : '新建脚本'" :width="760" :footer="null" destroyOnClose :getContainer="() => pageRoot">
       <a-form ref="formRef" :model="formState" :rules="formRules" :label-col="{ style: { width: '130px' } }" class="script-form">
         <a-form-item label="脚本编码" required name="code">
           <a-input v-model:value="formState.code" :disabled="isEdit" placeholder="例如：SCRIPT_PYTHON_001" />
@@ -63,7 +63,7 @@
       </div>
     </a-modal>
 
-    <a-modal v-model:open="detailVisible" title="脚本详情" :width="760" :footer="null" destroyOnClose>
+    <a-modal v-model:open="detailVisible" title="脚本详情" :width="760" :footer="null" destroyOnClose :getContainer="() => pageRoot">
       <a-descriptions bordered :column="1" size="middle">
         <a-descriptions-item label="ID">{{ detailRow.id }}</a-descriptions-item>
         <a-descriptions-item label="编码">{{ detailRow.code }}</a-descriptions-item>
@@ -82,7 +82,7 @@
     </a-modal>
 
     <a-modal v-model:open="envVisible" :title="`${envName} - 脚本环境管理`" :width="1100" :footer="null" :centered="true"
-      :maskClosable="false" :keyboard="false" destroyOnClose wrap-class-name="env-modal-fixed">
+      :maskClosable="false" :keyboard="false" destroyOnClose wrap-class-name="env-modal-fixed" :getContainer="() => pageRoot">
       <a-tabs v-model:activeKey="activeEnvTab">
         <a-tab-pane key="dev" tab="开发环境" />
         <a-tab-pane key="test" tab="测试环境" />
@@ -133,12 +133,14 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'ScriptPage' })
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { message } from 'ant-design-vue';
 import ScriptVersionEditor from '../components/ScriptVersionEditor.vue';
 import ScriptTestModal from '../components/ScriptTestModal.vue';
 import PromoteModal from '../components/PromoteModal.vue';
 import { scriptApi } from '../api/scriptApi';
+const pageRoot = ref(null);
 
 const keyword = ref('');
 const loading = ref(false);

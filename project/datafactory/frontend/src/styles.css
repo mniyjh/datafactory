@@ -8,13 +8,40 @@ body,
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
 }
 
-.app-layout {
-  min-height: 100vh;
+/* ========== 分栏布局：左侧菜单 + 右侧页面，完全独立 ========== */
+.app-shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
 }
 
-.sider {
+/* ---- 左侧菜单栏 ---- */
+.app-sidebar {
+  width: 180px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
   background: #001529;
+  transition: width 0.2s ease;
+  overflow: hidden;
   position: relative;
+  z-index: 1001; /* 始终在弹窗遮罩层之上 */
+}
+
+.app-sidebar.sidebar-collapsed {
+  width: 64px;
+}
+
+.nav-menu {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.nav-menu .ant-menu-inline {
+  border-inline-end: none !important;
 }
 
 .logo {
@@ -33,6 +60,7 @@ body,
   align-items: center;
   justify-content: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .logo-collapsed {
@@ -57,31 +85,43 @@ body,
   white-space: nowrap;
 }
 
-.side-menu {
-  background: #001529;
-  border-inline-end: none !important;
-}
-
 .sider-footer {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 28px;
-  line-height: 28px;
+  height: 36px;
+  line-height: 36px;
   text-align: center;
   color: #9fb3c8;
   background: #002140;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
 }
 
-.top-header {
+.sider-footer:hover {
+  color: #fff;
+  background: #003a70;
+}
+
+/* ---- 右侧页面区域 ---- */
+.app-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+  transform: translateZ(0); /* 创建新的 fixed 定位包含块，弹窗 fixed 相对于此区域 */
+}
+
+.app-header {
   height: 42px;
   line-height: 42px;
-  background: #fff !important;
+  background: #fff;
   color: #111;
   border-bottom: 1px solid #f0f0f0;
   padding: 0 10px;
   font-size: 16px;
+  flex-shrink: 0;
 }
 
 .menu-mark {
@@ -105,15 +145,20 @@ body,
   font-size: 12px;
 }
 
-.content {
+.app-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 12px;
 }
 
 .content-inner {
   background: #fff;
-  min-height: calc(100vh - 66px);
+  min-height: calc(100vh - 90px);
   border-radius: 2px;
   padding: 14px;
+  overflow-x: auto;
 }
 
 .page-wrap {

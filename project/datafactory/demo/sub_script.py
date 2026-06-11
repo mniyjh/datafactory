@@ -1,7 +1,7 @@
-"""加法脚本 — 类方法调用模式.
+"""减法脚本 — 类方法调用模式.
 
 组件: COMP_PYTHON_EXECUTOR  |  类名: Calculator  |  方法名: execute
-输入: a, b          |  输出: sum, detail
+输入: a, b          |  输出: diff, detail
 """
 
 import json, sys, traceback
@@ -11,11 +11,11 @@ class Calculator:
         try:
             x, y = float(a), float(b)
         except (ValueError, TypeError) as e:
-            return {"success": False, "error": str(e), "sum": 0, "detail": ""}
+            return {"success": False, "error": str(e), "diff": 0, "detail": ""}
         return {
             "success": True,
-            "sum": x + y,
-            "detail": f"{x} + {y} = {x + y}"
+            "diff": x - y,
+            "detail": f"{x} - {y} = {x - y}"
         }
 
 if __name__ == "__main__":

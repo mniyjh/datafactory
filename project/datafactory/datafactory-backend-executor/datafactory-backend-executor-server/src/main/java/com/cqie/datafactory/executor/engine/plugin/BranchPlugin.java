@@ -1,6 +1,7 @@
 package com.cqie.datafactory.executor.engine.plugin;
 
 import com.cqie.datafactory.common.exception.BusinessException;
+import com.cqie.datafactory.executor.engine.core.model.EdgeDef;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.googlecode.aviator.AviatorEvaluator;
 import org.springframework.stereotype.Component;
@@ -20,13 +21,113 @@ public class BranchPlugin implements ComponentPlugin {
     @Override
     public Map<String, Object> execute(PluginContext context) {
         JsonNode fieldValues = context.getNode().getFieldValues();
+        JsonNode branches = fieldValues != null ? fieldValues.get("branches") : null;
+
+        // Switch mode: branches array present and non-empty
+        if (branches != null && branches.isArray() && branches.size() > 0) {
+            return executeSwitch(branches, fieldValues, context);
+        }
+
+        // Original if/else mode (backward compatible)
+        return executeIfElse(fieldValues, context);
+    }
+
+    private Map<String, Object> executeSwitch(JsonNode branches, JsonNode fieldValues,
+                                               PluginContext context) {
+        // Read separate targetNodeIds array (new format) for index-based mapping
+        JsonNode targetNodeIdsNode = fieldValues != null ? fieldValues.get("targetNodeIds") : null;
+        List<String> targetNodeIds = jsonArrayToList(targetNodeIdsNode);
+
+        // Resolve edges as fallback (backward compat)
+        List<EdgeDef> edges = resolveBranchEdges(context);
+        Map<String, Object> env = null;
+        int index = 0;
+        for (JsonNode branch : branches) {
+            // New format: branch is a plain string (expression only)
+            // Old format: branch is an object {"expression":"...", "targetNodeId":"..."}
+            String expression;
+            String explicitTarget;
+            if (branch.isTextual()) {
+                expression = branch.asText();
+                explicitTarget = "";
+            } else {
+                expression = branch.has("expression") ? branch.get("expression").asText() : "";
+                explicitTarget = branch.has("targetNodeId") ? branch.get("targetNodeId").asText() : "";
+            }
+
+            if (expression.isBlank()) {
+                index++;
+                continue;
+            }
+
+            if (env == null) {
+                env = buildEnv(String.valueOf(branches), context.getUpstreamOutputs(),
+                        context.getResolvedInputs());
+            }
+
+            String normalizedExpr = stripVarWrappers(expression);
+            try {
+                Object evalResult = AviatorEvaluator.execute(normalizedExpr, env);
+                if (toBoolean(evalResult)) {
+                    // Resolve target: explicit in branch > targetNodeIds[index] > edge port > edge index
+                    String targetNodeId = !explicitTarget.isBlank() ? explicitTarget
+                            : (index < targetNodeIds.size() ? targetNodeIds.get(index) : "");
+                    if (targetNodeId.isBlank()) {
+                        targetNodeId = findTargetByPort(edges, String.valueOf(index),
+                                index < edges.size() ? edges.get(index) : null);
+                    }
+                    Map<String, Object> outputs = new HashMap<>();
+                    outputs.put("conditionResult", true);
+                    outputs.put("nextNodeId", targetNodeId);
+                    outputs.put("matchIndex", index);
+                    return outputs;
+                }
+            } catch (Exception e) {
+                throw new BusinessException(
+                        "条件表达式求值失败: " + expression + " — " + e.getMessage());
+            }
+            index++;
+        }
+
+        // No branch matched — return empty nextNodeId
+        Map<String, Object> outputs = new HashMap<>();
+        outputs.put("conditionResult", false);
+        outputs.put("nextNodeId", "");
+        outputs.put("matchIndex", -1);
+        return outputs;
+    }
+
+    /** 将 JsonNode 数组转为 String 列表，非数组返回空列表 */
+    private List<String> jsonArrayToList(JsonNode node) {
+        List<String> result = new ArrayList<>();
+        if (node != null && node.isArray()) {
+            for (JsonNode item : node) {
+                if (item != null && !item.isNull()) {
+                    result.add(item.asText());
+                }
+            }
+        }
+        return result;
+    }
+
+    private Map<String, Object> executeIfElse(JsonNode fieldValues, PluginContext context) {
         String expression = readFieldValue(fieldValues, "expression", "condition");
         if (expression.isBlank()) {
             throw new BusinessException("BRANCH组件缺少条件表达式");
         }
 
+        // Resolve targets: explicit config > edge by sourcePort
         String trueTarget = readFieldValue(fieldValues, "trueBranch", "trueTargetNodeId");
         String falseTarget = readFieldValue(fieldValues, "falseBranch", "falseTargetNodeId");
+
+        List<EdgeDef> edges = resolveBranchEdges(context);
+        if (trueTarget.isBlank()) {
+            trueTarget = findTargetByPort(edges, "true", edges.isEmpty() ? null : edges.get(0));
+        }
+        if (falseTarget.isBlank()) {
+            falseTarget = findTargetByPort(edges, "false",
+                    edges.size() > 1 ? edges.get(1) : null);
+        }
 
         Map<String, Object> env = buildEnv(expression, context.getUpstreamOutputs(), context.getResolvedInputs());
         String normalizedExpr = stripVarWrappers(expression);
@@ -43,6 +144,30 @@ public class BranchPlugin implements ComponentPlugin {
         outputs.put("conditionResult", result);
         outputs.put("nextNodeId", result ? trueTarget : falseTarget);
         return outputs;
+    }
+
+    /** 获取 BRANCH 的出边，按 sourcePort 数值排序（非数字的放后面） */
+    private List<EdgeDef> resolveBranchEdges(PluginContext context) {
+        List<EdgeDef> edges = new ArrayList<>(context.getOutgoingEdges());
+        edges.sort(Comparator.comparing(e -> {
+            String port = e.getSourcePort() != null ? e.getSourcePort() : "";
+            try { return String.format("%010d", Integer.parseInt(port)); } catch (NumberFormatException ex) {
+                return "￿" + port; // non-numeric ports sort after numeric ones
+            }
+        }));
+        return edges;
+    }
+
+    /** 从边列表中查找匹配 sourcePort 的 targetNodeId */
+    private String findTargetByPort(List<EdgeDef> edges, String port, EdgeDef fallback) {
+        for (EdgeDef e : edges) {
+            String p = e.getSourcePort() != null ? e.getSourcePort() : "";
+            if (p.equals(port) && e.getTargetNodeId() != null && !e.getTargetNodeId().isBlank()) {
+                return e.getTargetNodeId();
+            }
+        }
+        return fallback != null && fallback.getTargetNodeId() != null
+                ? fallback.getTargetNodeId() : "";
     }
 
     private Map<String, Object> buildEnv(String expr, Map<String, Map<String, Object>> upstreamOutputs,

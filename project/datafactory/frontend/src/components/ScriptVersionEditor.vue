@@ -1,5 +1,5 @@
 <template>
-  <a-modal :open="open" @update:open="(val) => { if (!val) emit('cancel'); }"
+  <div ref="root"><a-modal :getContainer="() => root" :zIndex="1050" :open="open" @update:open="(val) => { if (!val) emit('cancel'); }"
     :title="readonly ? '查看脚本版本配置' : `${environmentName}环境 - 版本编辑`" :width="1200" :footer="null" :centered="true"
     :maskClosable="false" :keyboard="false" destroyOnClose wrap-class-name="env-modal-fixed">
     <div class="editor-content-wrap">
@@ -25,7 +25,7 @@
               <a-row :gutter="16">
                 <a-col :span="12">
                   <a-form-item label="脚本语言">
-                    <a-tag color="green">{{ formState.type }}</a-tag>
+                    <a-tag :color="langTagColor">{{ formState.type }}</a-tag>
                   </a-form-item>
                 </a-col>
                 <a-col :span="12">
@@ -38,23 +38,23 @@
           </div>
 
           <!-- 执行配置 -->
-          <div class="section-card">
+          <div class="section-card" v-if="showExecConfig">
             <div class="section-title">执行配置</div>
             <a-form :model="formState" layout="vertical">
               <a-row :gutter="16">
-                <a-col :span="12">
+                <a-col :span="12" v-if="!isSqlType">
                   <a-form-item label="工作目录">
                     <a-input v-model:value="formState.workDir" placeholder="." :disabled="readonly" />
                   </a-form-item>
                 </a-col>
-                <a-col :span="12">
+                <a-col :span="12" v-if="!isSqlType">
                   <a-form-item label="解释器路径">
-                    <a-input v-model:value="formState.interpreterPath" placeholder="python"
+                    <a-input v-model:value="formState.interpreterPath" :placeholder="formState.type === 'SHELL' ? (isWindows ? 'cmd' : '/bin/bash') : 'python'"
                       :disabled="readonly" />
                   </a-form-item>
                 </a-col>
               </a-row>
-              <a-row :gutter="16">
+              <a-row :gutter="16" v-if="isPythonType">
                 <a-col :span="12">
                   <a-form-item label="最大内存(MB)">
                     <a-input-number v-model:value="formState.maxMemory" style="width: 100%" :min="64" :max="4096"
@@ -97,12 +97,12 @@
                 </a-col>
               </a-row>
 
-              <a-form-item label="依赖库">
+              <a-form-item label="依赖库" v-if="isPythonType">
                 <a-textarea v-model:value="formState.dependencies" :rows="2" :disabled="readonly"
                   placeholder='JSON格式，例如：["requests==2.28.0", "pandas==1.5.0"]' />
               </a-form-item>
 
-              <a-form-item label="环境变量">
+              <a-form-item label="环境变量" v-if="!isSqlType">
                 <a-textarea v-model:value="formState.envVars" :rows="2" :disabled="readonly"
                   placeholder='JSON格式，例如：{"PATH": "/usr/bin", "HOME": "/root"}' />
               </a-form-item>
@@ -120,11 +120,13 @@
       </div>
     </div>
   </a-modal>
+  </div>
 </template>
 
 <script setup>
-import { reactive, onMounted, computed, watch } from 'vue';
+import { ref,  reactive, onMounted, computed, watch } from 'vue';
 import { message } from 'ant-design-vue';
+const root = ref(null);
 
 const props = defineProps({
   open: Boolean,
@@ -149,6 +151,17 @@ const environmentName = computed(() => {
   return map[props.environment] || '开发';
 });
 
+const isPythonType = computed(() => (formState.type || '').toUpperCase() === 'PYTHON');
+const isSqlType = computed(() => (formState.type || '').toUpperCase() === 'SQL');
+const isShellType = computed(() => (formState.type || '').toUpperCase() === 'SHELL');
+const showExecConfig = computed(() => !isSqlType.value);
+const isWindows = typeof navigator !== 'undefined' && /windows/i.test(navigator.userAgent || '');
+
+const langTagColor = computed(() => {
+  const map = { PYTHON: 'green', SHELL: 'blue', SQL: 'orange' };
+  return map[(formState.type || '').toUpperCase()] || 'default';
+});
+
 const formState = reactive({
   id: null,
   code: '',
@@ -167,13 +180,21 @@ const formState = reactive({
   cpuLimit: 1.0
 });
 
+const defaultInterpreter = (type) => {
+  const t = (type || '').toUpperCase();
+  if (t === 'SHELL') return isWindows ? 'cmd' : '/bin/bash';
+  if (t === 'PYTHON') return 'python';
+  return '';
+};
+
 const initForm = () => {
   if (props.versionData) {
+    const type = props.versionData.type || 'PYTHON';
     Object.assign(formState, {
       id: props.versionData.id || null,
       code: props.versionData.code || '',
       name: props.versionData.name || '',
-      type: props.versionData.type || 'PYTHON',
+      type,
       changeLog: props.versionData.changeLog || props.versionData.remark || '',
       scriptCode: props.versionData.scriptCode || '',
       timeout: props.versionData.timeout || 30,
@@ -182,7 +203,7 @@ const initForm = () => {
       envVars: props.versionData.envVars || '{}',
       description: props.versionData.description || '',
       workDir: props.versionData.workDir || '.',
-      interpreterPath: props.versionData.interpreterPath || 'python',
+      interpreterPath: props.versionData.interpreterPath || defaultInterpreter(type),
       maxMemory: props.versionData.maxMemory || 512,
       cpuLimit: props.versionData.cpuLimit || 1.0,
       version: props.versionData.version || ''

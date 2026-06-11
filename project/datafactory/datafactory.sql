@@ -1,3 +1,11 @@
+-- ============================================================
+-- DataFactory 数据库初始化脚本
+-- 用法: source datafactory.sql
+-- ============================================================
+
+CREATE DATABASE IF NOT EXISTS datafactory DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+USE datafactory;
+
 CREATE TABLE IF NOT EXISTS task (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   task_code VARCHAR(64) NOT NULL UNIQUE,
@@ -153,19 +161,6 @@ CREATE TABLE IF NOT EXISTS open_api (
   KEY idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS open_api_invoke_log (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  api_code VARCHAR(64) NOT NULL,
-  task_id BIGINT DEFAULT NULL,
-  execution_id VARCHAR(64) DEFAULT NULL,
-  request_payload LONGTEXT DEFAULT NULL,
-  duration_ms BIGINT DEFAULT 0,
-  created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  KEY idx_api_code (api_code),
-  KEY idx_execution_id (execution_id),
-  KEY idx_created_time (created_time)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 CREATE TABLE IF NOT EXISTS script (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   script_code VARCHAR(64) NOT NULL UNIQUE,
@@ -181,29 +176,11 @@ CREATE TABLE IF NOT EXISTS script (
   KEY idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS component_definition (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  component_code VARCHAR(64) NOT NULL UNIQUE,
-  component_name VARCHAR(128) NOT NULL,
-  component_type VARCHAR(32) NOT NULL COMMENT '数据接入/数据处理/流程控制',
-  status TINYINT NOT NULL DEFAULT 1 COMMENT '0-禁用 1-启用',
-  is_system TINYINT NOT NULL DEFAULT 0 COMMENT '1-系统内置 0-自定义',
-  default_config LONGTEXT DEFAULT NULL,
-  description VARCHAR(500) DEFAULT NULL,
-  created_by VARCHAR(64) DEFAULT 'admin',
-  created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_by VARCHAR(64) DEFAULT 'admin',
-  updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  KEY idx_status (status),
-  KEY idx_is_system (is_system)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 CREATE TABLE IF NOT EXISTS component (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   component_code VARCHAR(64) NOT NULL UNIQUE,
   component_name VARCHAR(128) NOT NULL,
   component_type VARCHAR(32) NOT NULL DEFAULT '数据处理' COMMENT '数据接入/数据处理/流程控制',
-  category VARCHAR(32) DEFAULT NULL COMMENT '数据接入/数据处理/流程控制',
   version VARCHAR(32) DEFAULT '1.0.0',
   description VARCHAR(500) DEFAULT NULL,
   status TINYINT NOT NULL DEFAULT 1 COMMENT '0-禁用 1-启用',
@@ -222,7 +199,7 @@ CREATE TABLE component_field (
   field_code VARCHAR(64) NOT NULL,
   field_name VARCHAR(128) NOT NULL,
   value_type VARCHAR(32) NOT NULL COMMENT 'STRING/INT/BIGINT/DECIMAL/BOOLEAN/DATE/DATETIME/TEXT/JSON/ARRAY/OBJECT',
-  widget_type VARCHAR(32) NOT NULL COMMENT 'INPUT/TEXTAREA/NUMBER/SWITCH/SELECT/MULTI_SELECT/RADIO/CHECKBOX/DATE_PICKER/DATETIME_PICKER/JSON_EDITOR/PASSWORD',
+  widget_type VARCHAR(32) NOT NULL COMMENT 'TEXTAREA/SWITCH/MULTI_SELECT/DATE_PICKER',
   widget_props LONGTEXT DEFAULT NULL,
   default_value LONGTEXT DEFAULT NULL,
   required_flag TINYINT NOT NULL DEFAULT 0,
@@ -346,7 +323,7 @@ CREATE TABLE IF NOT EXISTS node_field_value (
   field_code VARCHAR(64) NOT NULL,
   field_name VARCHAR(128) DEFAULT NULL,
   value_type VARCHAR(32) NOT NULL DEFAULT 'STRING',
-  widget_type VARCHAR(32) DEFAULT 'INPUT' COMMENT '控件类型',
+  widget_type VARCHAR(32) DEFAULT 'TEXTAREA' COMMENT '控件类型',
   widget_props LONGTEXT DEFAULT NULL COMMENT '控件属性(JSON)',
   default_value VARCHAR(512) DEFAULT NULL COMMENT '默认值',
   field_value LONGTEXT DEFAULT NULL,
@@ -388,32 +365,6 @@ CREATE TABLE IF NOT EXISTS node_io_param_value (
   KEY idx_deprecated_flag (deprecated_flag)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS component_field_history (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  component_id BIGINT NOT NULL,
-  version VARCHAR(32) NOT NULL DEFAULT '1.0.0',
-  change_type VARCHAR(32) NOT NULL COMMENT 'ADD/UPDATE/DELETE/SYNC',
-  field_snapshot LONGTEXT NOT NULL COMMENT '字段快照(JSON)',
-  change_log VARCHAR(500) DEFAULT NULL,
-  created_by VARCHAR(64) DEFAULT 'admin',
-  created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  KEY idx_component_id (component_id),
-  KEY idx_version (version)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS component_io_param_history (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  component_id BIGINT NOT NULL,
-  version VARCHAR(32) NOT NULL DEFAULT '1.0.0',
-  change_type VARCHAR(32) NOT NULL COMMENT 'ADD/UPDATE/DELETE/SYNC',
-  param_snapshot LONGTEXT NOT NULL COMMENT '参数快照(JSON)',
-  change_log VARCHAR(500) DEFAULT NULL,
-  created_by VARCHAR(64) DEFAULT 'admin',
-  created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  KEY idx_component_id (component_id),
-  KEY idx_version (version)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 CREATE TABLE IF NOT EXISTS node_execution_log (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   execution_id VARCHAR(64) NOT NULL,
@@ -442,8 +393,6 @@ CREATE TABLE IF NOT EXISTS node_execution_log (
 CREATE TABLE schedule_job (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   job_code VARCHAR(64) NOT NULL UNIQUE,
-  task_id BIGINT DEFAULT NULL COMMENT '冗余字段: 首个关联任务ID(向后兼容)',
-  task_version_id BIGINT DEFAULT NULL COMMENT '冗余字段: 首个关联任务版本ID(向后兼容)',
   cron_expression VARCHAR(64) NOT NULL,
   environment VARCHAR(20) DEFAULT 'PROD',
   status TINYINT DEFAULT 1,
@@ -468,7 +417,6 @@ CREATE TABLE schedule_job (
   created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_by VARCHAR(64) DEFAULT 'admin',
   updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  KEY idx_task_id (task_id),
   KEY idx_status (status),
   KEY idx_parent_job (parent_job_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -533,20 +481,21 @@ CREATE TABLE IF NOT EXISTS schedule_job_daily_stats (
 -- 系统内置组件初始化数据
 -- ============================================================
 
-INSERT IGNORE INTO component (id, component_code, component_name, component_type, category, version, description, status) VALUES
-(1, 'COMP_START', '开始节点', '流程控制', '流程控制', '1.0.0', '任务开始节点，作为任务入口定义输入/输出参数', 1),
-(2, 'COMP_END', '结束节点', '流程控制', '流程控制', '1.0.0', '任务结束节点，收集所有上游输出合并为最终结果', 1),
-(3, 'COMP_DB_QUERY', '数据库查询', '数据接入', '数据接入', '1.0.0', '执行SQL从数据库读取数据', 1),
-(4, 'COMP_API_CALL', '接口调用', '数据接入', '数据接入', '1.0.0', '调用HTTP接口获取数据', 1),
-(5, 'COMP_SCRIPT', '脚本执行', '数据处理', '数据处理', '1.0.0', '执行Python/Shell/SQL脚本处理数据', 1),
-(6, 'COMP_FILTER', '数据过滤', '数据处理', '数据处理', '1.0.0', '对上游数据进行列过滤或条件过滤', 1),
-(7, 'COMP_BRANCH', '条件分支', '流程控制', '流程控制', '1.0.0', '根据表达式结果决定执行分支', 1),
-(8, 'COMP_SUB_TASK', '子任务调用', '流程控制', '流程控制', '1.0.0', '引用并执行其他已发布的任务', 1);
+INSERT IGNORE INTO component (id, component_code, component_name, component_type, version, description, status) VALUES
+(1, 'COMP_START', '开始节点', '流程控制', '1.0.0', '任务开始节点，作为任务入口定义输入/输出参数', 1),
+(2, 'COMP_END', '结束节点', '流程控制', '1.0.0', '任务结束节点，收集所有上游输出合并为最终结果', 1),
+(3, 'COMP_DB_QUERY', '数据库查询', '数据接入', '1.0.0', '从脚本管理选择SQL脚本连数据源执行查询', 1),
+(4, 'COMP_API_CALL', '接口调用', '数据接入', '1.0.0', '调用HTTP接口获取数据', 1),
+(5, 'COMP_PYTHON_EXECUTOR', 'PYTHON执行器', '数据处理', '1.0.0', '通过gRPC或本地进程执行Python脚本进行数据处理', 1),
+(6, 'COMP_FILTER', '数据过滤', '数据处理', '1.0.0', '对上游数据进行列过滤或条件过滤', 1),
+(7, 'COMP_BRANCH', '条件分支', '流程控制', '1.0.0', '根据表达式结果决定执行分支', 1),
+(8, 'COMP_SUB_TASK', '子任务调用', '流程控制', '1.0.0', '引用并执行其他已发布的任务', 1),
+(9, 'COMP_SHELL_EXECUTOR', 'Shell执行器', '数据处理', '1.0.0', '通过本地进程执行Shell脚本进行数据处理', 1);
 
 -- 数据库查询（数据接入）组件字段
 INSERT IGNORE INTO component_field (component_id, field_code, field_name, value_type, widget_type, widget_props, required_flag, sort_order, description) VALUES
-(3, 'datasource', '数据源', 'STRING', 'MULTI_SELECT', '{"optionsSource":{"sourceType":"DB_QUERY"}}', 1, 1, '选择已管理的数据源'),
-(3, 'sql', 'SQL语句', 'STRING', 'TEXTAREA', NULL, 1, 2, '要执行的SQL查询语句'),
+(3, 'scriptCode', '选择SQL脚本', 'STRING', 'MULTI_SELECT', '{"optionsSource":{"sourceType":"SCRIPT","scriptType":"SQL"}}', 1, 1, '从脚本管理中选择已发布的SQL脚本'),
+(3, 'datasource', '数据源', 'STRING', 'MULTI_SELECT', '{"optionsSource":{"sourceType":"DB_QUERY"}}', 1, 2, '选择已管理的数据源'),
 (3, 'result_var', '结果变量', 'STRING', 'TEXTAREA', NULL, 0, 3, '结果绑定的变量名');
 
 -- 接口调用（数据接入）组件字段
@@ -558,12 +507,12 @@ INSERT IGNORE INTO component_field (component_id, field_code, field_name, value_
 (4, 'body', '请求体', 'JSON', 'TEXTAREA', NULL, 0, 5, '请求体JSON（选择API后自动填入）'),
 (4, 'result_var', '结果变量', 'STRING', 'TEXTAREA', NULL, 0, 6, '响应绑定的变量名');
 
--- 脚本执行（数据处理）组件字段
+-- PYTHON执行器（数据处理）组件字段
 INSERT IGNORE INTO component_field (component_id, field_code, field_name, value_type, widget_type, widget_props, required_flag, sort_order, description) VALUES
-(5, 'scriptCode', '选择脚本', 'STRING', 'MULTI_SELECT', '{"optionsSource":{"sourceType":"SCRIPT"}}', 1, 1, '从脚本管理中选择已发布的脚本'),
+(5, 'scriptCode', '选择Python脚本', 'STRING', 'MULTI_SELECT', '{"optionsSource":{"sourceType":"SCRIPT","scriptType":"PYTHON"}}', 1, 1, '从脚本管理中选择已发布的Python脚本'),
 (5, 'result_var', '结果变量', 'STRING', 'TEXTAREA', NULL, 0, 2, '执行结果绑定的变量名'),
-(5, 'className', '类名', 'STRING', 'INPUT', NULL, 0, 3, 'Python类名，如 Calculator'),
-(5, 'methodName', '方法名', 'STRING', 'INPUT', NULL, 0, 4, '类方法名，如 execute');
+(5, 'className', '类名', 'STRING', 'TEXTAREA', NULL, 0, 3, 'Python类名，如 Calculator'),
+(5, 'methodName', '方法名', 'STRING', 'TEXTAREA', NULL, 0, 4, '类方法名，如 execute');
 
 -- 数据过滤（数据处理）组件字段
 INSERT IGNORE INTO component_field (component_id, field_code, field_name, value_type, widget_type, widget_props, required_flag, sort_order, description) VALUES
@@ -578,11 +527,17 @@ INSERT IGNORE INTO component_field (component_id, field_code, field_name, value_
 
 -- 条件分支（流程控制）组件字段
 INSERT IGNORE INTO component_field (component_id, field_code, field_name, value_type, widget_type, widget_props, required_flag, sort_order, description) VALUES
-(7, 'expression', '条件表达式', 'STRING', 'TEXTAREA', NULL, 1, 1, 'Aviator表达式，如 age > 18 && status == ''active''，支持${变量名}引用上游数据'),
-(7, 'trueBranch', '为真跳转节点ID', 'STRING', 'TEXTAREA', NULL, 0, 2, '条件为真时跳转的目标节点ID，不填则走默认连线'),
-(7, 'falseBranch', '为假跳转节点ID', 'STRING', 'TEXTAREA', NULL, 0, 3, '条件为假时跳转的目标节点ID，不填则走默认连线');
+(7, 'branches', '分支表达式', 'JSON', 'TEXTAREA', '{"itemType":"expression","branchLoad":true}', 1, 1, '每行一个Aviator表达式字符串；从上到下求值，第一个true即命中'),
+(7, 'targetNodeIds', '选择下游节点', 'JSON', 'MULTI_SELECT', '{"optionsSource":{"sourceType":"BRANCH_LOAD"}}', 1, 2, '多选下拉框，动态加载已连线到当前BRANCH的下游节点；按选择顺序与上面表达式一一对应');
+
+
+-- Shell执行器（数据处理）组件字段
+INSERT IGNORE INTO component_field (component_id, field_code, field_name, value_type, widget_type, widget_props, required_flag, sort_order, description) VALUES
+(9, 'scriptCode', '选择Shell脚本', 'STRING', 'MULTI_SELECT', '{"optionsSource":{"sourceType":"SCRIPT","scriptType":"SHELL"}}', 1, 1, '从脚本管理中选择已发布的Shell脚本'),
+(9, 'result_var', '结果变量', 'STRING', 'TEXTAREA', NULL, 0, 2, '执行结果绑定的变量名');
 
 -- 子任务调用（流程控制）组件字段
 INSERT IGNORE INTO component_field (component_id, field_code, field_name, value_type, widget_type, widget_props, required_flag, sort_order, description) VALUES
 (8, 'subTaskId', '选择子任务', 'STRING', 'MULTI_SELECT', '{"optionsSource":{"sourceType":"TASK"}}', 1, 1, '从任务管理中选择已发布到生产环境的任务'),
 (8, 'result_var', '结果变量', 'STRING', 'TEXTAREA', NULL, 0, 2, '子任务结果绑定的变量名');
+

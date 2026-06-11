@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap component-page">
+  <div class="page-wrap component-page" ref="pageRoot">
     <div class="toolbar toolbar-wrap">
       <span class="keyword-label">关键字：</span>
       <a-input v-model:value="keyword" placeholder="请输入组件名称或编码" />
@@ -29,7 +29,7 @@
       </template>
     </a-table>
 
-    <a-modal v-model:open="formVisible" :title="isEdit ? '编辑组件' : '新建组件'" :width="720" :footer="null" destroyOnClose>
+    <a-modal v-model:open="formVisible" :title="isEdit ? '编辑组件' : '新建组件'" :width="720" :footer="null" destroyOnClose :getContainer="() => pageRoot">
       <a-form ref="formRef" :model="formState" :rules="formRules" :label-col="{ style: { width: '120px' } }">
         <a-form-item label="组件编码" required name="componentCode">
           <a-input v-model:value="formState.componentCode" :disabled="isEdit" placeholder="请输入组件编码" />
@@ -63,7 +63,7 @@
       </div>
     </a-modal>
 
-    <a-modal v-model:open="metaVisible" :title="`组件字段管理 - ${metaTitle}`" :width="1450" :footer="null" destroyOnClose :bodyStyle="{ overflow: 'hidden' }">
+    <a-modal v-model:open="metaVisible" :title="`组件字段管理 - ${metaTitle}`" :width="1450" :footer="null" destroyOnClose :bodyStyle="{ overflow: 'hidden' }" :getContainer="() => pageRoot">
       <div class="meta-layout">
         <div class="meta-section meta-section-top">
           <div class="meta-section-title">字段管理</div>
@@ -83,26 +83,16 @@
                   <a-select-option v-for="t in widgetTypeOptions" :key="t.value" :value="t.value">{{ t.label }}</a-select-option>
                 </a-select>
                 <div v-else-if="column.dataIndex === 'optionConfig' && shouldPersistWidgetProps(record)" style="display:flex;flex-direction:column;gap:4px;">
-                  <a-radio-group v-model:value="record.optionsSourceType" size="small">
-                    <a-radio-button value="">静态</a-radio-button>
-                    <a-radio-button value="DB_QUERY">DB加载</a-radio-button>
-                    <a-radio-button value="API_CALL">API加载</a-radio-button>
-                    <a-radio-button value="SCRIPT">SCRIPT加载</a-radio-button>
-                    <a-radio-button value="TASK">任务加载</a-radio-button>
-                  </a-radio-group>
+                  <a-select v-model:value="record.optionsSourceType" size="small" style="width:100%" :getPopupContainer="triggerNode => triggerNode.closest('.ant-modal-content') || document.body">
+                    <a-select-option value="">静态选项</a-select-option>
+                    <a-select-option value="DB_QUERY">DB加载</a-select-option>
+                    <a-select-option value="API_CALL">API加载</a-select-option>
+                    <a-select-option value="SCRIPT">SCRIPT加载</a-select-option>
+                    <a-select-option value="TASK">任务加载</a-select-option>
+                    <a-select-option value="BRANCH_LOAD">分支加载</a-select-option>
+                  </a-select>
                   <a-textarea v-if="!record.optionsSourceType" v-model:value="record.optionContent" :rows="2" placeholder="如 A:选项A&#10;B:选项B" @change="syncFieldOptions(record)" />
-                  <template v-if="record.optionsSourceType === 'DB_QUERY'">
-                    <span style="color:#888;font-size:12px;">选项由数据库管理中选中的数据源的当前版本加载，具体数据源请在画布中选择</span>
-                  </template>
-                  <template v-if="record.optionsSourceType === 'API_CALL'">
-                    <span style="color:#888;font-size:12px;">选项由三方API管理中选中的API的当前版本加载，具体API请在画布中选择</span>
-                  </template>
-                  <template v-if="record.optionsSourceType === 'SCRIPT'">
-                    <span style="color:#888;font-size:12px;">选项由脚本管理中选中的脚本的当前版本执行结果加载，具体脚本请在画布中选择</span>
-                  </template>
-                  <template v-if="record.optionsSourceType === 'TASK'">
-                    <span style="color:#888;font-size:12px;">选项由任务管理中已发布到生产环境的任务列表加载</span>
-                  </template>
+                  <span v-if="record.optionsSourceType" style="color:#888;font-size:12px;">{{ optionSourceDescMap[record.optionsSourceType] || '' }}</span>
                 </div>
                 <span v-else-if="column.dataIndex === 'optionConfig'">-</span>
                 <a-switch v-else-if="column.dataIndex === 'requiredFlag'" v-model:checked="record.requiredBool" />
@@ -122,9 +112,11 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'ComponentPage' })
 import { computed, reactive, ref, watch } from 'vue';
 import { message } from 'ant-design-vue';
 import { componentApi } from '../api/componentApi';
+const pageRoot = ref(null);
 
 const keyword = ref('');
 const loading = ref(false);
@@ -204,7 +196,7 @@ const normalizeFieldOptions = (record = {}) => {
 };
 const shouldPersistWidgetProps = (record = {}) => {
   const widgetType = String(record.widgetType || 'TEXTAREA').toUpperCase();
-  return widgetType === 'MULTI_SELECT';
+  return widgetType === 'MULTI_SELECT' || widgetType === 'SELECT';
 };
 
 const safeMessage = (e, fallback) => {
@@ -223,15 +215,20 @@ const valueTypeOptions = [
   { value: 'JSON', label: 'JSON' }
 ];
 const widgetTypeOptions = [
-  { value: 'INPUT', label: '输入框' },
   { value: 'TEXTAREA', label: '文本域' },
-  { value: 'NUMBER', label: '数字输入' },
   { value: 'SWITCH', label: '开关' },
-  { value: 'SELECT', label: '下拉框' },
   { value: 'MULTI_SELECT', label: '多选框' },
   { value: 'DATE_PICKER', label: '日期选择器' }
 ];
 const categoryOptions = ['数据接入', '数据处理', '流程控制'];
+
+const optionSourceDescMap = {
+  DB_QUERY: '选项由数据库管理中选中的数据源的当前版本加载，具体数据源请在画布中选择',
+  API_CALL: '选项由三方API管理中选中的API的当前版本加载，具体API请在画布中选择',
+  SCRIPT: '选项由脚本管理中选中的脚本的当前版本执行结果加载，具体脚本请在画布中选择',
+  TASK: '选项由任务管理中已发布到生产环境的任务列表加载',
+  BRANCH_LOAD: '选项由当前节点通过连接线连接的下游节点动态加载'
+};
 
 
 const columns = [

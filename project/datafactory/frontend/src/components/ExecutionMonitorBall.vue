@@ -116,7 +116,7 @@ import {
   ClockCircleOutlined,
   FileTextOutlined
 } from '@ant-design/icons-vue';
-import { taskApi, taskDslApi } from '../api/task';
+import { taskApi } from '../api/task';
 import { message } from 'ant-design-vue';
 import TaskTestModal from './TaskTestModal.vue';
 
@@ -209,7 +209,7 @@ const toggleMinimize = () => {
 const fetchTasks = async () => {
   loading.value = true;
   try {
-    const res = await taskApi.pageTasks({
+    const res = await taskApi.page({
       keyword: searchText.value,
       current: 1,
       size: 50
@@ -219,7 +219,7 @@ const fetchTasks = async () => {
     // 筛选有生产版本的任务
     const tasksWithProd = await Promise.all(records.map(async (t) => {
       try {
-        const vRes = await taskApi.listVersions(t.id, 'PROD');
+        const vRes = await taskApi.getTaskVersions(t.id, { environment: 'PROD' });
         const currentProd = (vRes.data?.data || []).find(v => v.isCurrent === 1);
         return currentProd ? { ...t, prodVersion: currentProd.version } : null;
       } catch { return null; }
@@ -240,7 +240,7 @@ const handleRun = async (task) => {
     message.loading({ content: `正在启动任务: ${task.taskName}`, key: 'run_task' });
     
     // 1. 获取当前生产版本的 DSL，以提取默认参数
-    const resDsl = await taskDslApi.current(task.id, 'PROD');
+    const resDsl = await taskApi.current(task.id, 'PROD');
     const versionData = resDsl.data?.data;
     if (!versionData) {
       message.warning({ content: '该任务暂无已发布的生产版本', key: 'run_task' });

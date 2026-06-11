@@ -1,5 +1,5 @@
 <template>
-  <a-modal :open="open" @update:open="(val) => { if (!val) emit('close'); }" :width="1360" :footer="null"
+  <div ref="root"><a-modal :getContainer="() => root" :zIndex="1050" :open="open" @update:open="(val) => { if (!val) emit('close'); }" :width="1360" :footer="null"
     :centered="true" :maskClosable="false" :keyboard="false" destroyOnClose wrap-class-name="env-modal-fixed">
     <template #title>
       <div class="modal-title">
@@ -135,12 +135,14 @@
       </div>
     </div>
   </a-modal>
+  </div>
 </template>
 
 <script setup>
-import { reactive, watch } from 'vue';
+import { ref,  reactive, watch } from 'vue';
 import { message } from 'ant-design-vue';
 import { ArrowLeftOutlined } from '@ant-design/icons-vue';
+const root = ref(null);
 
 const props = defineProps({
   open: Boolean,

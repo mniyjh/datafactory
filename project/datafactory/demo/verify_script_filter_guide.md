@@ -75,7 +75,7 @@ curl -X POST http://localhost:8080/script/version \
 | 字段 | 值 | 说明 |
 |------|-----|------|
 | 脚本内容 | `demo/verify_script_filter.py` 的全部内容 | 复制粘贴 |
-| 超时时间(秒) | `30` | Python 脚本执行超时 |
+| 超时时间(秒) | `30` | Python PYTHON执行器超时 |
 | 重试次数 | `0` | 不需要重试 |
 | 解释器路径 | `python` | 或 `python3` |
 | 工作目录 | `.` | 当前目录 |
@@ -157,7 +157,7 @@ curl -X POST http://localhost:8082/tasks \
 | 节点 | 从面板中选择 | 画布位置 |
 |------|------------|---------|
 | 开始 | 流程控制 → 开始节点 | x:100, y:200 |
-| 脚本 | 数据处理 → 脚本执行 | x:340, y:200 |
+| 脚本 | 数据处理 → PYTHON执行器 | x:340, y:200 |
 | 过滤 | 数据处理 → 数据过滤 | x:580, y:200 |
 | 结束 | 流程控制 → 结束节点 | x:800, y:200 |
 
@@ -166,7 +166,7 @@ curl -X POST http://localhost:8082/tasks \
 从节点输出端口(右侧圆点)拖动到下一节点的输入端口(左侧圆点)：
 
 ```
-[开始] ──→ [脚本执行] ──→ [数据过滤] ──→ [结束]
+[开始] ──→ [PYTHON执行器] ──→ [数据过滤] ──→ [结束]
 ```
 
 ### 3.2.3 配置 START 节点 — 输出参数
@@ -186,7 +186,7 @@ curl -X POST http://localhost:8082/tasks \
 
 ### 3.2.4 配置 SCRIPT 节点 — 字段属性
 
-双击 **"脚本执行"** 节点 → 切换到 **"组件字段"** 标签页：
+双击 **"PYTHON执行器"** 节点 → 切换到 **"组件字段"** 标签页：
 
 | 字段名 | 值 |
 |--------|-----|
@@ -401,7 +401,7 @@ START.outputParams             SCRIPT.inputParams           Python stdin
 
 | 问题 | 检查项 |
 |------|--------|
-| 脚本执行失败 | `interpreterPath` 是否正确（`python` vs `python3`）；`ScriptTestModal` 中单独测试脚本 |
+| PYTHON执行器失败 | `interpreterPath` 是否正确（`python` vs `python3`）；`ScriptTestModal` 中单独测试脚本 |
 | FILTER 过滤为空 | 检查 `sourceNodeId` 是否匹配 SCRIPT 节点 id；检查 `expression` 字段名是否与 Python stdout 一致（`totalAmount` 驼峰） |
 | 参数未传递 | 检查 SCRIPT 的 `inputParams[].sourceType` 是否为 `UPSTREAM_OUTPUT`；`sourceValue` 节点 id 是否正确 |
 | 输出参数为空 | 检查 `outputParams` 的 `paramCode` 是否与 Python stdout JSON 的 key 名一致 |

@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap" ref="pageRoot">
     <div class="toolbar">
       <span class="keyword-label">关键字：</span>
       <a-input v-model:value="keyword" placeholder="请输入接口名称和编码" />
@@ -32,7 +32,7 @@
       </template>
     </a-table>
 
-    <a-modal v-model:open="formVisible" :title="isEdit ? '编辑接口' : '新建接口'" :width="1200" :footer="null" destroyOnClose>
+    <a-modal v-model:open="formVisible" :title="isEdit ? '编辑接口' : '新建接口'" :width="1200" :footer="null" destroyOnClose :getContainer="() => pageRoot">
       <div class="openapi-modal-content">
         <div class="layout-left">
           <div class="section-card">
@@ -150,7 +150,7 @@
       </div>
     </a-modal>
 
-    <a-modal v-model:open="detailVisible" title="查看接口" :width="1200" :footer="null" destroyOnClose>
+    <a-modal v-model:open="detailVisible" title="查看接口" :width="1200" :footer="null" destroyOnClose :getContainer="() => pageRoot">
       <div class="openapi-modal-content">
         <div class="layout-left">
           <div class="section-card">
@@ -251,7 +251,7 @@
       </div>
     </a-modal>
 
-    <a-modal v-model:open="invokeVisible" title="调用开放接口" :width="800" :footer="null" destroyOnClose>
+    <a-modal v-model:open="invokeVisible" title="调用开放接口" :width="800" :footer="null" destroyOnClose :getContainer="() => pageRoot">
       <a-form layout="vertical">
         <a-form-item label="接口编码">
           <a-input :value="invokeForm.code" disabled />
@@ -279,11 +279,13 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'OpenApiPage' })
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { message } from 'ant-design-vue';
 import { useRouter } from 'vue-router';
 import { openApi } from '../api/openApi';
 import { taskApi } from '../api/task';
+const pageRoot = ref(null);
 
 const keyword = ref('');
 const loading = ref(false);

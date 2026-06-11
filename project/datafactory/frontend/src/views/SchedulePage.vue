@@ -1,5 +1,5 @@
 <template>
-  <div class="schedule-page">
+  <div class="schedule-page" ref="pageRoot">
     <div class="page-header">
       <h3>定时任务管理</h3>
       <a-button type="primary" @click="showCreateModal">新建定时任务</a-button>
@@ -52,7 +52,7 @@
 
     <!-- 创建/编辑弹窗 -->
     <a-modal v-model:open="modalVisible" :title="editingId ? '编辑定时任务' : '新建定时任务'" @ok="handleSave"
-      @cancel="modalVisible = false" width="1200px">
+      @cancel="modalVisible = false" width="1200px" :getContainer="() => pageRoot">
       <a-form ref="formRef" :model="form" :rules="formRules" layout="vertical">
         <div class="modal-content">
           <!-- 左侧：表单 -->
@@ -262,7 +262,7 @@
     </a-modal>
 
     <!-- 统计弹窗 -->
-    <a-modal v-model:open="statsVisible" title="调度统计" :footer="null" width="520px" @cancel="statsVisible = false">
+    <a-modal v-model:open="statsVisible" title="调度统计" :footer="null" width="520px" @cancel="statsVisible = false" :getContainer="() => pageRoot">
       <a-spin :spinning="statsLoading">
         <template v-if="statsError">
           <a-alert type="error" :message="statsError" show-icon style="margin-bottom:12px;" />
@@ -284,6 +284,7 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'SchedulePage' })
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
@@ -291,6 +292,7 @@ import { scheduleApi } from '../api/scheduleApi';
 import { taskApi } from '../api/task';
 import { componentApi } from '../api/componentApi';
 import FlowViewer from '../components/FlowViewer.vue';
+const pageRoot = ref(null);
 
 const router = useRouter();
 
@@ -365,9 +367,6 @@ const cronPresets = [
 
 const defaultForm = () => ({
   jobCode: '',
-  taskId: null,
-  taskCode: '',
-  taskVersionId: null,
   tasks: [{ taskId: null, taskVersionId: null, environment: null }],
   cronExpression: '',
   environment: 'TEST',
@@ -388,7 +387,7 @@ const columns = [
   { title: '编码', dataIndex: 'jobCode', key: 'jobCode', width: 130 },
   { title: '关联任务数', key: 'taskCount', width: 90,
     customCell: () => ({ style: { textAlign: 'center' } }),
-    customRender: ({ record }) => (record.jobTasks && record.jobTasks.length) ? record.jobTasks.length : (record.taskId ? 1 : 0)
+    customRender: ({ record }) => (record.jobTasks && record.jobTasks.length) ? record.jobTasks.length : 0
   },
   { title: 'Cron', key: 'cron', slots: { customRender: 'cron' }, width: 160 },
   { title: '环境', dataIndex: 'environment', key: 'environment', width: 60 },
@@ -667,20 +666,7 @@ const loadActiveTaskIoParams = async () => {
   }
 };
 
-const onTaskChange = (taskId) => {
-  const t = taskList.value.find(item => item.id === taskId);
-  form.value.taskCode = t?.taskCode || '';
-  form.value.taskVersionId = null;
-  versionList.value = [];
-  ioParamsList.value = [];
-  paramsConfig.value = {};
-  currentDslContent.value = null;
-  selectedFlowNode.value = null;
-  if (form.value.environment) loadVersionList();
-};
-
 const onEnvironmentChange = () => {
-  form.value.taskVersionId = null;
   versionList.value = [];
   ioParamsList.value = [];
   paramsConfig.value = {};
@@ -691,20 +677,6 @@ const onEnvironmentChange = () => {
   form.value.tasks.forEach((item, i) => {
     if (item.taskId) loadTaskItemVersions(i, item.taskId);
   });
-  if (form.value.taskId) loadVersionList();
-};
-
-const loadVersionList = async () => {
-  if (!form.value.taskId || !form.value.environment) return;
-  versionLoading.value = true;
-  try {
-    const res = await taskApi.getTaskVersions(form.value.taskId, { environment: form.value.environment });
-    versionList.value = res.data?.data || [];
-  } catch (e) {
-    versionList.value = [];
-  } finally {
-    versionLoading.value = false;
-  }
 };
 
 const extractNodeIoParams = (node) => {
@@ -725,123 +697,6 @@ const isStartOrEndByNode = (node) => {
   return node.type === 'START' || node.type === 'END' ||
     String(node.componentCode || '').toUpperCase().includes('START') ||
     String(node.componentCode || '').toUpperCase().includes('END');
-};
-
-const loadIoParams = async () => {
-  if (!form.value.taskVersionId) return;
-  paramsLoading.value = true;
-  ioParamsList.value = [];
-  try {
-    // Find the selected version from versionList
-    const selectedVersion = versionList.value.find(v => v.id === form.value.taskVersionId);
-    if (!selectedVersion || !selectedVersion.dslContent) {
-      paramsLoading.value = false;
-      return;
-    }
-
-    // Parse DSL
-    const dsl = typeof selectedVersion.dslContent === 'string'
-      ? JSON.parse(selectedVersion.dslContent)
-      : selectedVersion.dslContent;
-    currentDslContent.value = dsl;
-    const nodes = dsl.nodes || [];
-
-    // Fetch component metadata for richer param info
-    const componentIds = [...new Set(nodes.map(n => n.componentId).filter(Boolean))];
-    const metaMap = new Map();
-    await Promise.all(componentIds.map(async (cid) => {
-      try {
-        const res = await componentApi.getMeta(cid);
-        metaMap.set(cid, res.data?.data || null);
-      } catch (e) {
-        metaMap.set(cid, null);
-      }
-    }));
-
-    // Process nodes - extract all IO params
-    const rows = [];
-    nodes.forEach(node => {
-      // START/END: sync output params from input params
-      if (isStartOrEndByNode(node)) {
-        const inputs = Array.isArray(node.inputParams) ? node.inputParams : [];
-        node.outputParams = inputs.map(item => ({
-          paramCode: item.paramCode,
-          paramName: item.paramName,
-          dataType: item.dataType,
-          requiredFlag: item.requiredFlag || 0,
-          sourceType: item.sourceType || 'CONST',
-          sourceValue: item.sourceValue ?? '',
-          defaultValue: typeof item.sourceValue === 'string' ? item.sourceValue : ''
-        }));
-      }
-
-      const nodeParams = extractNodeIoParams(node);
-      const meta = node.componentId ? metaMap.get(node.componentId) : null;
-      const metaParams = [
-        ...(meta?.inputParams || []).map(p => ({ ...p, ioType: 'INPUT' })),
-        ...(meta?.outputParams || []).map(p => ({ ...p, ioType: 'OUTPUT' }))
-      ];
-
-      // Merge: meta params first, node params override
-      const byKey = new Map();
-      [...metaParams, ...nodeParams].forEach((p, idx) => {
-        const t = String(p.ioType || p.paramType || 'INPUT').toUpperCase();
-        const k = `${t}::${p.paramCode || p.paramName || p.name || idx}`;
-        byKey.set(k, { ...(byKey.get(k) || {}), ...p, ioType: t });
-      });
-
-      Array.from(byKey.values()).forEach((param, idx) => {
-        const upperType = String(param.ioType || 'INPUT').toUpperCase();
-        const key = param.paramCode || param.name || `${upperType === 'OUTPUT' ? 'output' : 'param'}_${idx + 1}`;
-        rows.push({
-          id: `${node.id}_${upperType}_${key}_${idx}`,
-          ioType: upperType,
-          paramCode: key,
-          paramName: param.paramName || param.name || key,
-          description: param.description || '',
-          dataType: param.dataType || param.type || 'STRING',
-          sourceType: param.sourceType || 'CONST',
-          sourceValue: ensureString(param.sourceValue) ?? ensureString(param.defaultValue) ?? '',
-          requiredFlag: Number(param.requiredFlag || 0),
-          nodeId: node.id,
-          nodeName: node.name || node.id,
-          nodeType: node.type || '',
-          componentCode: node.componentCode || ''
-        });
-      });
-    });
-
-    ioParamsList.value = rows;
-
-    // Restore saved param values when editing
-    if (editingId.value && form.value.paramsConfig) {
-      try {
-        const saved = typeof form.value.paramsConfig === 'string'
-          ? JSON.parse(form.value.paramsConfig) : form.value.paramsConfig;
-        const conf = saved?.params || saved || {};
-        if (Array.isArray(conf)) {
-          paramsConfig.value = {};
-          conf.forEach(p => {
-            const match = rows.find(r =>
-              r.nodeId === p.nodeId && r.ioType === p.ioType && r.paramCode === p.paramCode
-            );
-            if (match) {
-              paramsConfig.value[match.id] = p.sourceValue;
-            }
-          });
-        }
-      } catch (e) {
-        paramsConfig.value = {};
-      }
-    } else {
-      paramsConfig.value = {};
-    }
-  } catch (e) {
-    ioParamsList.value = [];
-    console.warn('加载IO参数失败:', e);
-  } finally {
-    paramsLoading.value = false;
-  }
 };
 
 const onFlowNodeClick = (node) => {
@@ -919,10 +774,6 @@ const editJob = async (record) => {
   taskItemVersionMap.value = {};
 
   await loadTaskList();
-  if (!form.value.taskCode && form.value.taskId) {
-    const t = taskList.value.find(item => item.id === form.value.taskId);
-    form.value.taskCode = t?.taskCode || '';
-  }
 
   // 加载关联的任务列表
   try {
@@ -941,12 +792,7 @@ const editJob = async (record) => {
       await loadActiveTaskIoParams();
     }
   } catch (e) {
-    // Fallback: 使用旧 taskId
-    if (form.value.taskId) {
-      form.value.tasks = [{ taskId: form.value.taskId, taskVersionId: form.value.taskVersionId, environment: null }];
-      await loadTaskItemVersions(0, form.value.taskId);
-      await loadActiveTaskIoParams();
-    }
+    // 无关联任务数据
   }
   modalVisible.value = true;
 };
@@ -978,9 +824,6 @@ const handleSave = async () => {
         sortOrder: i,
         paramsConfig: t.paramsConfig || null
       }));
-      // 向后兼容: 第一个 task 回填到 taskId/taskVersionId + job 级 paramsConfig
-      payload.taskId = payload.tasks[0].taskId;
-      payload.taskVersionId = payload.tasks[0].taskVersionId;
       payload.paramsConfig = payload.tasks[0].paramsConfig || null;
     }
     if (editingId.value) {

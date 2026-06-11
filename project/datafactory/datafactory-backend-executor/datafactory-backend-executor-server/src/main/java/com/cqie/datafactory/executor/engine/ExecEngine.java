@@ -47,8 +47,39 @@ public class ExecEngine {
         Map<String, Object> resolvedVars = new HashMap<>();
         Map<String, Object> finalOutput = new HashMap<>();
         Map<String, Object> currentParams = triggerParams != null ? triggerParams : new HashMap<>();
+        Set<String> skipSet = new HashSet<>();
+
+        // Build outgoing edges index: nodeId → list of edges
+        Map<String, List<EdgeDef>> outgoingEdgesMap = new HashMap<>();
+        for (EdgeDef e : dsl.getEdges()) {
+            outgoingEdgesMap.computeIfAbsent(e.getSourceNodeId(), k -> new ArrayList<>()).add(e);
+        }
+
+        // Build reverse adjacency for skip propagation
+        Map<String, List<String>> parentMap = new HashMap<>();
+        for (EdgeDef e : dsl.getEdges()) {
+            parentMap.computeIfAbsent(e.getTargetNodeId(), k -> new ArrayList<>()).add(e.getSourceNodeId());
+        }
 
         for (NodeDef node : sequence) {
+            // Skip blocked nodes
+            if (skipSet.contains(node.getId())) {
+                NodeExecutionRecord record = new NodeExecutionRecord();
+                record.nodeId = node.getId();
+                record.nodeName = node.getDisplayName();
+                record.nodeType = node.getType();
+                record.componentCode = node.getComponentCode();
+                record.status = "SKIPPED";
+                record.startTime = System.currentTimeMillis();
+                record.endTime = record.startTime;
+                record.durationMs = 0;
+                record.retryCount = 0;
+                if (nodeCallback != null) {
+                    nodeCallback.accept(record);
+                }
+                continue;
+            }
+
             long startMs = System.currentTimeMillis();
             NodeExecutionRecord record = new NodeExecutionRecord();
             record.nodeId = node.getId();
@@ -73,25 +104,34 @@ public class ExecEngine {
                         }
                     }
 
-                    // END node with no explicit input: pass upstream outputs directly
-                    if ("END".equalsIgnoreCase(node.getType()) && node.getInputParams().isEmpty()) {
+                    // END node: 先合并上游输出，再用 inputParams 覆盖（inputParams 是声明性的，实际值来自上游）
+                    if ("END".equalsIgnoreCase(node.getType())) {
                         for (Map<String, Object> upstream : nodeOutputsMap.values()) {
                             resolvedInputs.putAll(upstream);
                         }
                     }
 
-                    PluginContext ctx = new PluginContext(node, environment, resolvedInputs, nodeOutputsMap, resolvedVars);
+                    List<EdgeDef> outgoingEdges = outgoingEdgesMap.getOrDefault(node.getId(), List.of());
+                    PluginContext ctx = new PluginContext(node, environment, resolvedInputs, nodeOutputsMap, resolvedVars, outgoingEdges);
                     Map<String, Object> rawResult = pluginRegistry.get(pluginType).execute(ctx);
 
                     Map<String, Object> nodeOutputs = buildNodeOutputs(node, resolvedInputs, rawResult);
                     nodeOutputsMap.put(node.getId(), nodeOutputs);
+
+                    // Branch routing: compute nodes to skip on inactive branches
+                    if ("BRANCH".equalsIgnoreCase(pluginType)) {
+                        Set<String> blocked = computeBlockedNodes(node, rawResult, dsl,
+                                parentMap, outgoingEdgesMap);
+                        skipSet.addAll(blocked);
+                    }
 
                     String resultVar = readFieldValue(node.getFieldValues(), "result_var");
                     if (!resultVar.isBlank()) {
                         resolvedVars.put(resultVar, nodeOutputs);
                     }
                     if ("END".equalsIgnoreCase(node.getType())) {
-                        finalOutput = nodeOutputs;
+                        // 多个 END 节点时合并输出，不覆盖
+                        finalOutput.putAll(nodeOutputs);
                     }
 
                     record.status = "SUCCESS";
@@ -123,6 +163,58 @@ public class ExecEngine {
         return finalOutput;
     }
 
+    /**
+     * 阻塞传播算法：从 BRANCH 节点的非命中出边出发，找出所有被阻塞的下游节点。
+     * 规则：一个节点被阻塞 ⟺ 它所有入边的来源节点都已被阻塞（没有任何活跃父节点）。
+     */
+    private Set<String> computeBlockedNodes(NodeDef branchNode, Map<String, Object> result,
+                                            DslModel dsl,
+                                            Map<String, List<String>> parentMap,
+                                            Map<String, List<EdgeDef>> outgoingEdgesMap) {
+        Set<String> blocked = new HashSet<>();
+        String nextNodeId = result.get("nextNodeId") instanceof String s ? s : "";
+
+        // Step 1: 收集 BRANCH 的非激活直连子节点
+        List<EdgeDef> branchOut = outgoingEdgesMap.getOrDefault(branchNode.getId(), List.of());
+        for (EdgeDef e : branchOut) {
+            String target = e.getTargetNodeId();
+            if (target != null && !target.equals(nextNodeId)) {
+                blocked.add(target);
+            }
+        }
+
+        if (blocked.isEmpty()) return blocked;
+
+        // Step 2: 获取拓扑序中 BRANCH 之后的节点列表
+        List<NodeDef> sequence = topoSort.sort(dsl);
+        boolean foundBranch = false;
+
+        // Step 3: 传播阻塞 —— 逐节点检查是否所有父节点都被阻塞
+        for (NodeDef node : sequence) {
+            if (node.getId().equals(branchNode.getId())) {
+                foundBranch = true;
+                continue;
+            }
+            if (!foundBranch) continue;
+
+            List<String> parents = parentMap.getOrDefault(node.getId(), List.of());
+            if (parents.isEmpty()) continue;
+
+            boolean allParentsBlocked = true;
+            for (String parent : parents) {
+                if (!blocked.contains(parent)) {
+                    allParentsBlocked = false;
+                    break;
+                }
+            }
+            if (allParentsBlocked) {
+                blocked.add(node.getId());
+            }
+        }
+
+        return blocked;
+    }
+
     private Map<String, Object> buildNodeOutputs(NodeDef node, Map<String, Object> resolvedInputs,
                                                   Map<String, Object> rawResult) {
         Map<String, Object> outputs = new HashMap<>();
@@ -140,8 +232,6 @@ public class ExecEngine {
                 outputs.put(code, effectiveResult.get(code));
             } else if (resolvedInputs.containsKey(code)) {
                 outputs.put(code, resolvedInputs.get(code));
-            } else {
-                outputs.put(code, effectiveResult);
             }
         }
         if (outputs.isEmpty()) {
@@ -193,7 +283,7 @@ public class ExecEngine {
         if (fieldCodes.contains("scriptCode")) return "SCRIPT";
         if (fieldCodes.contains("filterMode")) return "FILTER";
         if (fieldCodes.contains("subTaskId")) return "COMMON_TASK";
-        if (fieldCodes.contains("expression")) return "BRANCH";
+        if (fieldCodes.contains("branches")) return "BRANCH";
 
         // 根据组件名称/编码推导 START/END（不区分大小写）
         String name = node.getDisplayName() != null ? node.getDisplayName().toUpperCase() : "";

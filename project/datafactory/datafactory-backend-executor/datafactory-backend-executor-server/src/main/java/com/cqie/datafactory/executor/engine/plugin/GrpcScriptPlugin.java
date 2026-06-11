@@ -46,7 +46,7 @@ public class GrpcScriptPlugin implements ComponentPlugin {
         context.getResolvedInputs().forEach((k, v) -> inputParams.put(k, Objects.toString(v, "")));
 
         Map<String, Object> grpcResp = grpcClient.execute(
-                scriptContent, scriptType, inputParams, timeout, workDir);
+                scriptContent, scriptType, inputParams, timeout, workDir, Collections.emptyMap());
 
         Map<String, Object> result = new HashMap<>();
         result.put("exitCode", grpcResp.getOrDefault("exit_code", 0));

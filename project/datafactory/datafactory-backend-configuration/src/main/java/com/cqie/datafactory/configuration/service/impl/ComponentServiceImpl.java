@@ -13,11 +13,6 @@ import com.cqie.datafactory.configuration.controller.vo.ComponentMetaVO;
 import com.cqie.datafactory.configuration.controller.vo.ComponentVO;
 import com.cqie.datafactory.configuration.entity.Component;
 import com.cqie.datafactory.configuration.entity.ComponentField;
-import com.cqie.datafactory.configuration.entity.ComponentFieldHistory;
-import com.cqie.datafactory.configuration.entity.ComponentIoParam;
-import com.cqie.datafactory.configuration.entity.ComponentIoParamHistory;
-import com.cqie.datafactory.configuration.mapper.ComponentFieldHistoryMapper;
-import com.cqie.datafactory.configuration.mapper.ComponentIoParamHistoryMapper;
 import com.cqie.datafactory.configuration.mapper.ComponentFieldMapper;
 import com.cqie.datafactory.configuration.mapper.ComponentMapper;
 import com.cqie.datafactory.configuration.service.ComponentService;
@@ -51,12 +46,6 @@ public class ComponentServiceImpl extends ServiceImpl<ComponentMapper, Component
     private ComponentFieldMapper componentFieldMapper;
 
     @Autowired
-    private ComponentFieldHistoryMapper componentFieldHistoryMapper;
-
-    @Autowired
-    private ComponentIoParamHistoryMapper componentIoParamHistoryMapper;
-
-    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Override
@@ -83,7 +72,6 @@ public class ComponentServiceImpl extends ServiceImpl<ComponentMapper, Component
         component.setComponentCode(dto.getCode());
         component.setComponentName(dto.getName());
         component.setComponentType(normalizeAndValidateType(dto.getType()));
-        component.setCategory(dto.getCategory());
         component.setVersion(StringUtils.hasText(dto.getVersion()) ? dto.getVersion() : "1.0.0");
         component.setDescription(dto.getDesc());
         component.setStatus("启用".equals(dto.getStatus()) ? 1 : 0);
@@ -103,7 +91,6 @@ public class ComponentServiceImpl extends ServiceImpl<ComponentMapper, Component
         }
         component.setComponentName(dto.getName());
         component.setComponentType(normalizeAndValidateType(dto.getType()));
-        component.setCategory(dto.getCategory());
         component.setVersion(dto.getVersion());
         component.setDescription(dto.getDesc());
         component.setStatus("启用".equals(dto.getStatus()) ? 1 : 0);
@@ -184,7 +171,7 @@ public class ComponentServiceImpl extends ServiceImpl<ComponentMapper, Component
                     throw new BusinessException("字段名称不能为空");
                 }
                 String valueType = StringUtils.hasText(dto.getValueType()) ? dto.getValueType().toUpperCase() : "STRING";
-                String widgetType = StringUtils.hasText(dto.getWidgetType()) ? dto.getWidgetType().toUpperCase() : "INPUT";
+                String widgetType = StringUtils.hasText(dto.getWidgetType()) ? dto.getWidgetType().toUpperCase() : "TEXTAREA";
                 if (!allowedValueTypes.contains(valueType)) {
                     throw new BusinessException("不支持的数据类型: " + valueType);
                 }
@@ -219,7 +206,7 @@ public class ComponentServiceImpl extends ServiceImpl<ComponentMapper, Component
             entity.setFieldCode(dto.getFieldCode());
             entity.setFieldName(dto.getFieldName());
             entity.setValueType(dto.getValueType() != null ? dto.getValueType().toUpperCase() : "STRING");
-            entity.setWidgetType(dto.getWidgetType() != null ? dto.getWidgetType().toUpperCase() : "INPUT");
+            entity.setWidgetType(dto.getWidgetType() != null ? dto.getWidgetType().toUpperCase() : "TEXTAREA");
             entity.setWidgetProps(dto.getWidgetProps());
             entity.setDefaultValue(dto.getDefaultValue());
             entity.setRequiredFlag(dto.getRequiredFlag() == null ? 0 : dto.getRequiredFlag());
@@ -229,52 +216,12 @@ public class ComponentServiceImpl extends ServiceImpl<ComponentMapper, Component
             idx++;
         }
 
-        // 递增组件版本并记录变更历史
+        // 递增组件版本
         Component component = this.getById(componentId);
         if (component != null) {
             String newVersion = bumpVersion(component.getVersion());
             component.setVersion(newVersion);
             this.updateById(component);
-
-            ComponentFieldHistory history = new ComponentFieldHistory();
-            history.setComponentId(componentId);
-            history.setVersion(newVersion);
-            history.setChangeType("UPDATE");
-            history.setFieldSnapshot(toJson(fields));
-            history.setChangeLog("字段配置变更");
-            history.setCreatedBy("admin");
-            history.setCreatedTime(LocalDateTime.now());
-            componentFieldHistoryMapper.insert(history);
-
-            // Record IO param snapshot alongside field history
-            List<ComponentIoParam> ioParams = jdbcTemplate.query(
-                "SELECT io_type, param_code, param_name, data_type, source_type, source_value, default_value, required_flag, param_space, sort_order FROM component_io_param WHERE component_id = ? ORDER BY sort_order",
-                (rs, rowNum) -> {
-                    ComponentIoParam p = new ComponentIoParam();
-                    p.setIoType(rs.getString("io_type"));
-                    p.setParamCode(rs.getString("param_code"));
-                    p.setParamName(rs.getString("param_name"));
-                    p.setDataType(rs.getString("data_type"));
-                    p.setSourceType(rs.getString("source_type"));
-                    p.setSourceValue(rs.getString("source_value"));
-                    p.setDefaultValue(rs.getString("default_value"));
-                    p.setRequiredFlag(rs.getInt("required_flag"));
-                    p.setParamSpace(rs.getString("param_space"));
-                    p.setSortOrder(rs.getInt("sort_order"));
-                    return p;
-                },
-                componentId
-            );
-
-            ComponentIoParamHistory ioHistory = new ComponentIoParamHistory();
-            ioHistory.setComponentId(componentId);
-            ioHistory.setVersion(newVersion);
-            ioHistory.setChangeType("UPDATE");
-            ioHistory.setParamSnapshot(toJson(ioParams));
-            ioHistory.setChangeLog("字段配置变更同步IO参数快照");
-            ioHistory.setCreatedBy("admin");
-            ioHistory.setCreatedTime(LocalDateTime.now());
-            componentIoParamHistoryMapper.insert(ioHistory);
         }
     }
 
@@ -284,7 +231,7 @@ public class ComponentServiceImpl extends ServiceImpl<ComponentMapper, Component
         vo.setCode(entity.getComponentCode());
         vo.setName(entity.getComponentName());
         vo.setType(entity.getComponentType());
-        vo.setCategory(entity.getCategory());
+        vo.setCategory(entity.getComponentType());
         vo.setVersion(entity.getVersion());
         vo.setStatus(entity.getStatus() != null && entity.getStatus() == 1 ? "启用" : "禁用");
         vo.setDesc(entity.getDescription());

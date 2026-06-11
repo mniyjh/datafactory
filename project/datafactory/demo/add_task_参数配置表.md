@@ -3,7 +3,7 @@
 ## 任务流水线
 
 ```
-[开始节点 s1] ──→ [脚本执行 sc1] ──→ [结束节点 e1]
+[开始节点 s1] ──→ [PYTHON执行器 sc1] ──→ [结束节点 e1]
 ```
 
 ---
@@ -24,9 +24,9 @@
 
 ---
 
-## 二、脚本执行节点 (SCRIPT) — `sc1`
+## 二、PYTHON执行器节点 (SCRIPT) — `sc1`
 
-**组件**: COMP_SCRIPT / 脚本执行  
+**组件**: COMP_PYTHON_EXECUTOR / PYTHON执行器  
 **作用**: 调用 Python 加法脚本，计算两数之和与乘积
 
 ### 组件字段 (fieldValues)
@@ -115,7 +115,7 @@
 │  → 序列化为 JSON → Python stdin:                                     │
 │    {"a": "5", "b": "3"}                                              │
 │                                                                      │
-│  → Python 脚本执行 → stdout 输出:                                     │
+│  → Python PYTHON执行器 → stdout 输出:                                     │
 │    {                                                                 │
 │      "success": true,                                                │
 │      "sum": 8.0,                                                     │

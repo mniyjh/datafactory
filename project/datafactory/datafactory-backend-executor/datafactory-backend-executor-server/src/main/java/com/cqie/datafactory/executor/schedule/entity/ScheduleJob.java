@@ -10,8 +10,6 @@ public class ScheduleJob {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String jobCode;
-    private Long taskId;
-    private Long taskVersionId;
     private String cronExpression;
     private String environment;
     private Integer status;
@@ -67,12 +65,6 @@ public class ScheduleJob {
 
     public String getJobCode() { return jobCode; }
     public void setJobCode(String jobCode) { this.jobCode = jobCode; }
-
-    public Long getTaskId() { return taskId; }
-    public void setTaskId(Long taskId) { this.taskId = taskId; }
-
-    public Long getTaskVersionId() { return taskVersionId; }
-    public void setTaskVersionId(Long taskVersionId) { this.taskVersionId = taskVersionId; }
 
     public String getCronExpression() { return cronExpression; }
     public void setCronExpression(String cronExpression) { this.cronExpression = cronExpression; }

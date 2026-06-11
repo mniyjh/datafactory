@@ -47,8 +47,9 @@ public class GrpcPythonClient {
 
     public Map<String, Object> execute(String scriptContent, String scriptType,
                                         Map<String, String> inputParams,
-                                        int timeoutSeconds, String workDir) {
-        return execute(scriptContent, scriptType, null, null, inputParams, timeoutSeconds, workDir);
+                                        int timeoutSeconds, String workDir,
+                                        Map<String, String> envVars) {
+        return execute(scriptContent, scriptType, null, null, inputParams, timeoutSeconds, workDir, envVars);
     }
 
     /**
@@ -59,13 +60,15 @@ public class GrpcPythonClient {
     public Map<String, Object> execute(String scriptContent, String scriptType,
                                         String className, String methodName,
                                         Map<String, String> inputParams,
-                                        int timeoutSeconds, String workDir) {
+                                        int timeoutSeconds, String workDir,
+                                        Map<String, String> envVars) {
         var builder = ExecuteRequest.newBuilder()
                 .setScriptContent(scriptContent)
                 .setScriptType(scriptType != null ? scriptType : "PYTHON")
                 .putAllInputParams(inputParams != null ? inputParams : Map.of())
                 .setTimeoutSeconds(timeoutSeconds)
-                .setWorkDir(workDir != null ? workDir : "");
+                .setWorkDir(workDir != null ? workDir : "")
+                .putAllEnvVars(envVars != null ? envVars : Map.of());
         if (className != null && !className.isBlank()) {
             builder.setClassName(className);
         }

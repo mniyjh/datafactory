@@ -72,6 +72,8 @@ public class ScriptPlugin implements ComponentPlugin {
         int timeoutSec = version.getTimeout() != null ? version.getTimeout() : 30;
         String interpreterPath = version.getInterpreterPath() != null ? version.getInterpreterPath() : "python";
         String workDir = version.getWorkDir() != null ? version.getWorkDir() : "";
+        String envVarsJson = version.getEnvVars();
+        Map<String, String> scriptEnvVars = parseEnvVars(envVarsJson);
 
         try {
             if ("SQL".equals(scriptType)) {
@@ -112,7 +114,7 @@ public class ScriptPlugin implements ComponentPlugin {
 
                 Map<String, Object> grpcResp = grpcClient.execute(
                         scriptContent, scriptType, className, methodName,
-                        grpcParams, timeoutSec, workDir);
+                        grpcParams, timeoutSec, workDir, scriptEnvVars);
 
                 Map<String, Object> result = new HashMap<>();
                 result.put("exitCode", grpcResp.getOrDefault("exit_code", 0));
@@ -146,6 +148,8 @@ public class ScriptPlugin implements ComponentPlugin {
                 pb = new ProcessBuilder(interpreter, tempScript.toAbsolutePath().toString());
             }
             if (!workDir.isBlank()) pb.directory(Path.of(workDir).toFile());
+            // 注入脚本版本配置的环境变量
+            if (!scriptEnvVars.isEmpty()) pb.environment().putAll(scriptEnvVars);
             pb.redirectErrorStream(false);
             Process process = pb.start();
 
@@ -195,7 +199,7 @@ public class ScriptPlugin implements ComponentPlugin {
             String stderr = stderrFuture.getNow("");
             if (!finished) {
                 process.destroyForcibly();
-                throw new BusinessException("脚本执行超时(" + timeoutSec + "s), stdout=" + stdout + ", stderr=" + stderr);
+                throw new BusinessException("Python脚本执行超时(" + timeoutSec + "s), stdout=" + stdout + ", stderr=" + stderr);
             }
 
             int exitCode = process.exitValue();
@@ -211,13 +215,13 @@ public class ScriptPlugin implements ComponentPlugin {
             }
 
             if (exitCode != 0) {
-                throw new BusinessException("脚本执行失败(exitCode=" + exitCode + "): " + stderr);
+                throw new BusinessException("Python脚本执行失败(exitCode=" + exitCode + "): " + stderr);
             }
             return result;
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            throw new BusinessException("脚本执行异常: " + e.getMessage());
+            throw new BusinessException("Python脚本执行异常: " + e.getMessage());
         }
     }
 
@@ -228,5 +232,18 @@ public class ScriptPlugin implements ComponentPlugin {
             if (val != null && !val.isNull() && !val.asText().isBlank()) return val.asText();
         }
         return "";
+    }
+
+    private Map<String, String> parseEnvVars(String envVarsJson) {
+        if (envVarsJson == null || envVarsJson.isBlank()) return Collections.emptyMap();
+        try {
+            Map<String, String> result = new HashMap<>();
+            Map<?, ?> parsed = objectMapper.readValue(envVarsJson, Map.class);
+            parsed.forEach((k, v) -> result.put(String.valueOf(k), v != null ? String.valueOf(v) : ""));
+            return result;
+        } catch (Exception e) {
+            log.warn("脚本环境变量 JSON 解析失败: {}", envVarsJson);
+            return Collections.emptyMap();
+        }
     }
 }

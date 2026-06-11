@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap" ref="pageRoot">
     <div class="toolbar">
       <span class="keyword-label">关键字：</span>
       <a-input v-model:value="keyword" placeholder="请输入任务名称和编码" style="width: 240px; margin-right: 12px" />
@@ -30,7 +30,7 @@
       </template>
     </a-table>
 
-    <a-modal v-model:open="detailVisible" title="任务详情" :width="760" :footer="null" destroyOnClose>
+    <a-modal v-model:open="detailVisible" title="任务详情" :width="760" :footer="null" destroyOnClose :getContainer="() => pageRoot">
       <a-descriptions bordered :column="1" size="middle">
         <a-descriptions-item label="任务ID">{{ detailRow.id }}</a-descriptions-item>
         <a-descriptions-item label="任务编码">{{ detailRow.taskCode }}</a-descriptions-item>
@@ -42,7 +42,7 @@
       <div class="modal-actions"><a-button @click="detailVisible = false">关闭</a-button></div>
     </a-modal>
 
-    <a-modal v-model:open="formVisible" :title="isEdit ? '编辑任务' : '新建任务'" :width="760" :footer="null" destroyOnClose>
+    <a-modal v-model:open="formVisible" :title="isEdit ? '编辑任务' : '新建任务'" :width="760" :footer="null" destroyOnClose :getContainer="() => pageRoot">
       <a-form ref="formRef" :model="formState" :rules="formRules" :label-col="{ style: { width: '130px' } }" class="task-form">
         <a-form-item label="任务编码" required name="taskCode">
           <a-input v-model:value="formState.taskCode" :disabled="isEdit" placeholder="请输入任务编码" />
@@ -70,7 +70,7 @@
     </a-modal>
 
     <a-modal v-model:open="envVisible" :title="`${envName} - 任务环境管理`" :width="1100" :footer="null" :centered="true"
-      :maskClosable="false" :keyboard="false" destroyOnClose wrap-class-name="env-modal-fixed">
+      :maskClosable="false" :keyboard="false" destroyOnClose wrap-class-name="env-modal-fixed" :getContainer="() => pageRoot">
       <a-tabs v-model:activeKey="activeEnvTab" @change="loadVersions">
         <a-tab-pane key="dev" tab="开发环境" />
         <a-tab-pane key="test" tab="测试环境" />
@@ -124,6 +124,7 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'TaskPage' })
 import { onMounted, reactive, ref, computed } from 'vue';
 import { message } from 'ant-design-vue';
 import { useRouter } from 'vue-router';
@@ -131,6 +132,7 @@ import TaskDevVersionEditor from '../components/TaskDevVersionEditor.vue';
 import TaskTestModal from '../components/TaskTestModal.vue';
 import PromoteModal from '../components/PromoteModal.vue';
 import { taskApi, taskDslApi } from '../api/task';
+const pageRoot = ref(null);
 
 const keyword = ref('');
 const loading = ref(false);
@@ -334,7 +336,7 @@ const openEnvModal = async (record, env = 'dev') => {
 
 const loadVersions = async () => {
   if (!currentTaskId.value) return;
-  const res = await taskDslApi.list(currentTaskId.value, toEnvCode(activeEnvTab.value));
+  const res = await taskDslApi.getTaskVersions(currentTaskId.value, { environment: toEnvCode(activeEnvTab.value) });
   envRows.value = res.data?.data || res.data?.records || [];
   selectedVersionId.value = null;
 };

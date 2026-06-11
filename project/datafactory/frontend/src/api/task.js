@@ -28,41 +28,23 @@ export const taskApi = {
   page(params) {
     return http.get('/tasks/page', { params });
   },
-  pageTasks(params) {
-    return this.page(params);
-  },
   detail(id) {
     return http.get(`/tasks/${id}`);
-  },
-  getTaskDetail(id) {
-    return this.detail(id);
   },
   create(data) {
     return http.post('/tasks', data);
   },
-  createTask(data) {
-    return this.create(data);
-  },
   update(data) {
     return http.put(`/tasks/${data.id}`, data);
   },
-  updateTask(data) {
-    return this.update(data);
-  },
   remove(id) {
     return http.delete(`/tasks/${id}`);
-  },
-  deleteTask(id) {
-    return this.remove(id);
   },
   changeStatus(id, statusOrPayload) {
     const payload = typeof statusOrPayload === 'object'
       ? statusOrPayload
       : { status: statusOrPayload === 1 ? '发布' : '停运', publishInfo: '页面状态变更' };
     return http.put(`/tasks/${id}/status`, payload);
-  },
-  toggleTaskStatus(id, payload) {
-    return this.changeStatus(id, payload);
   },
   getTaskHistory(id) {
     return http.get(`/task-dsl/${id}/versions`);
@@ -72,17 +54,8 @@ export const taskApi = {
   getTaskVersions(taskId, params) {
     return http.get(`/task-dsl/${taskId}/versions`, { params });
   },
-  list(taskId, env) {
-    return this.getTaskVersions(taskId, { environment: env });
-  },
-  listVersions(taskId, env) {
-    return this.list(taskId, env);
-  },
   createVersion(data) {
     return http.post('/task-dsl/version', data);
-  },
-  createTaskVersion(data) {
-    return this.createVersion(data);
   },
   updateTaskVersion(id, data) {
     return http.put(`/task-dsl/version/${id}`, data);
@@ -90,35 +63,14 @@ export const taskApi = {
   publish(versionId) {
     return http.post(`/task-dsl/version/${versionId}/publish`);
   },
-  publishVersion(versionId) {
-    return this.publish(versionId);
-  },
-  publishTaskVersion(versionId) {
-    return this.publish(versionId);
-  },
   promote(taskId, payload) {
     return http.post(`/task-dsl/${taskId}/promote`, payload);
-  },
-  promoteVersion(taskId, payload) {
-    return this.promote(taskId, payload);
-  },
-  promoteTaskVersion(taskId, payload) {
-    return this.promote(taskId, payload);
   },
   rollbackEnvironment(taskId, payload) {
     return http.post(`/task-dsl/${taskId}/rollback-env`, payload);
   },
-  rollbackTaskEnvironment(taskId, payload) {
-    return this.rollbackEnvironment(taskId, payload);
-  },
   removeVersion(versionId) {
     return http.delete(`/task-dsl/version/${versionId}`);
-  },
-  deleteVersion(versionId) {
-    return this.removeVersion(versionId);
-  },
-  deleteTaskVersion(versionId) {
-    return this.removeVersion(versionId);
   },
   setCurrentVersion(versionId) {
     return http.post(`/task-dsl/version/${versionId}/current`);
@@ -142,9 +94,6 @@ export const taskApi = {
   },
   rebuildComponentSnapshots(taskDslId) {
     return http.post(`/component-snapshot/${taskDslId}/rebuild`);
-  },
-  syncTaskNodes(taskDslId) {
-    return this.rebuildComponentSnapshots(taskDslId);
   },
   getOutdatedNodes(taskId, environment) {
     return http.get(`/task-dsl/${taskId}/outdatedNodes`, { params: { environment } });
@@ -182,4 +131,5 @@ export const taskApi = {
   }
 };
 
-export const taskDslApi = taskApi; // For components importing taskDslApi separately
+// For components that import taskDslApi separately
+export { taskApi as taskDslApi };

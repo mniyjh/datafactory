@@ -75,7 +75,6 @@ public class ScheduleJobService extends ServiceImpl<ScheduleJobMapper, ScheduleJ
     @Transactional
     public boolean save(ScheduleJob job) {
         try {
-            prefillDirectFieldsFromJobTasks(job);
             computeNextFireTime(job);
             boolean result = super.save(job);
             if (!result) {
@@ -210,8 +209,6 @@ public class ScheduleJobService extends ServiceImpl<ScheduleJobMapper, ScheduleJ
                 oldJob.getCronExpression(), newJob.getCronExpression(), now);
         diff(logs, jobId, changeType, "status",
                 String.valueOf(oldJob.getStatus()), String.valueOf(newJob.getStatus()), now);
-        diff(logs, jobId, changeType, "task_version_id",
-                String.valueOf(oldJob.getTaskVersionId()), String.valueOf(newJob.getTaskVersionId()), now);
         diff(logs, jobId, changeType, "environment",
                 oldJob.getEnvironment(), newJob.getEnvironment(), now);
         diff(logs, jobId, changeType, "retry_count",
@@ -272,8 +269,6 @@ public class ScheduleJobService extends ServiceImpl<ScheduleJobMapper, ScheduleJ
     private ScheduleJob copyForAudit(ScheduleJob source) {
         ScheduleJob copy = new ScheduleJob();
         copy.setJobCode(source.getJobCode());
-        copy.setTaskId(source.getTaskId());
-        copy.setTaskVersionId(source.getTaskVersionId());
         copy.setCronExpression(source.getCronExpression());
         copy.setEnvironment(source.getEnvironment());
         copy.setStatus(source.getStatus());
@@ -325,18 +320,6 @@ public class ScheduleJobService extends ServiceImpl<ScheduleJobMapper, ScheduleJ
      */
     private void syncJobTasksFromJob(ScheduleJob job) {
         if (job.getJobTasks() == null || job.getJobTasks().isEmpty()) {
-            // 如果 jobTasks 为空但 taskId 有值，从 taskId 自动创建一条
-            if (job.getTaskId() != null) {
-                ScheduleJobTask link = new ScheduleJobTask();
-                link.setScheduleJobId(job.getId());
-                link.setTaskId(job.getTaskId());
-                link.setTaskVersionId(job.getTaskVersionId());
-                link.setSortOrder(0);
-                link.setParamsConfig(job.getParamsConfig());
-                link.setCreatedBy(job.getCreatedBy() != null ? job.getCreatedBy() : "admin");
-                link.setCreatedTime(LocalDateTime.now());
-                scheduleJobTaskMapper.insert(link);
-            }
             return;
         }
         for (int i = 0; i < job.getJobTasks().size(); i++) {
@@ -352,16 +335,4 @@ public class ScheduleJobService extends ServiceImpl<ScheduleJobMapper, ScheduleJ
         }
     }
 
-    /**
-     * 在 insert/update 之前: 若 job.taskId 为空，从 jobTasks 第一个回填，兼容旧表 NOT NULL 约束。
-     */
-    private void prefillDirectFieldsFromJobTasks(ScheduleJob job) {
-        if (job.getTaskId() != null) return;
-        List<ScheduleJobTask> tasks = job.getJobTasks();
-        if (tasks != null && !tasks.isEmpty()) {
-            ScheduleJobTask first = tasks.get(0);
-            job.setTaskId(first.getTaskId());
-            job.setTaskVersionId(first.getTaskVersionId());
-        }
-    }
 }

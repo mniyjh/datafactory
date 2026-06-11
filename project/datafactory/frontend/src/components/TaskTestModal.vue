@@ -1,5 +1,5 @@
 <template>
-  <a-modal v-model:open="visible" title="任务测试执行" :width="1200" :footer="null" :centered="true" :maskClosable="false"
+  <div ref="root"><a-modal :getContainer="() => root" :zIndex="1050" v-model:open="visible" title="任务测试执行" :width="1200" :footer="null" :centered="true" :maskClosable="false"
     destroyOnClose @cancel="handleClose">
     <div class="test-modal-content">
       <div class="test-modal-layout">
@@ -108,7 +108,7 @@
     </div>
 
     <!-- 新增配置弹窗 -->
-    <a-modal v-model:open="newConfigVisible" title="新增测试配置" @ok="handleAddNewConfig">
+    <a-modal v-model:open="newConfigVisible" :zIndex="1100" title="新增测试配置" :getContainer="() => root" @ok="handleAddNewConfig">
       <a-form layout="vertical">
         <a-form-item label="配置名称" required>
           <a-input v-model:value="newConfigName" placeholder="例如：测试用例-01" />
@@ -116,6 +116,7 @@
       </a-form>
     </a-modal>
   </a-modal>
+  </div>
 </template>
 
 <script setup>
@@ -124,6 +125,7 @@ import { message } from 'ant-design-vue';
 import { taskApi } from '../api/task';
 import { componentApi } from '../api/componentApi';
 import FlowViewer from './FlowViewer.vue';
+const root = ref(null);
 
 const props = defineProps({
   open: Boolean,

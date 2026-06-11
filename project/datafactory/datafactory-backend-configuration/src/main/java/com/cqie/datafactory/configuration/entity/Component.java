@@ -15,7 +15,6 @@ public class Component {
     private String componentCode;
     private String componentName;
     private String componentType;
-    private String category;
     private String version;
     private String description;
     private Integer status;

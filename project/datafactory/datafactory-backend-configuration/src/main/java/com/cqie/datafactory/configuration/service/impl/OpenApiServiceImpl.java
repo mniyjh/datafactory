@@ -205,9 +205,6 @@ public class OpenApiServiceImpl extends ServiceImpl<OpenApiMapper, OpenApi> impl
     }
     String execIdStr = executionId != null ? executionId.toString() : null;
 
-    // 记录调用日志
-    recordInvokeLog(code, api.getTaskId(), execIdStr, payload, startMs);
-
     Map<String, Object> result = new HashMap<>();
     result.put("apiCode", api.getApiCode());
     result.put("taskId", api.getTaskId());
@@ -245,16 +242,6 @@ public class OpenApiServiceImpl extends ServiceImpl<OpenApiMapper, OpenApi> impl
     }
 
     return result;
-  }
-
-  private void recordInvokeLog(String apiCode, Long taskId, String executionId, Map<String, Object> payload, long startMs) {
-    try {
-      jdbcTemplate.update(
-          "INSERT INTO open_api_invoke_log (api_code, task_id, execution_id, request_payload, duration_ms, created_time) VALUES (?,?,?,?,?,?)",
-          apiCode, taskId, executionId,
-          payload != null ? new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(payload) : "{}",
-          System.currentTimeMillis() - startMs, LocalDateTime.now());
-    } catch (Exception ignore) {}
   }
 
   private String generateApiCode() {

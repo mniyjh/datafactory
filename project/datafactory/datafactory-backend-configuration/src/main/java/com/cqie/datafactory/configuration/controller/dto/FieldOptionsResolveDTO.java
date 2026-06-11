@@ -9,7 +9,10 @@ public class FieldOptionsResolveDTO {
     private Long scriptId;
     private Long scriptVersionId;
     private String query;
+    private String scriptType;   // PYTHON/SQL/SHELL — 按脚本类型过滤
     private String environment;
+    private Long taskDslId;
+    private String nodeId;
 
     public String getSourceType() { return sourceType; }
     public void setSourceType(String sourceType) { this.sourceType = sourceType; }
@@ -27,6 +30,12 @@ public class FieldOptionsResolveDTO {
     public void setScriptVersionId(Long scriptVersionId) { this.scriptVersionId = scriptVersionId; }
     public String getQuery() { return query; }
     public void setQuery(String query) { this.query = query; }
+    public String getScriptType() { return scriptType; }
+    public void setScriptType(String scriptType) { this.scriptType = scriptType; }
     public String getEnvironment() { return environment; }
     public void setEnvironment(String environment) { this.environment = environment; }
+    public Long getTaskDslId() { return taskDslId; }
+    public void setTaskDslId(Long taskDslId) { this.taskDslId = taskDslId; }
+    public String getNodeId() { return nodeId; }
+    public void setNodeId(String nodeId) { this.nodeId = nodeId; }
 }

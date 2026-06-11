@@ -1,5 +1,5 @@
 """
-综合数据分析脚本 - 用于数据工厂 COMP_SCRIPT 组件
+综合数据分析脚本 - 用于数据工厂 COMP_PYTHON_EXECUTOR 组件
 功能：合并数据库查询结果与外部 API 数据，进行统计分析和数据增强
 
 输入(stdin JSON):

@@ -113,8 +113,8 @@ public class HighFrequencyScheduler {
                 fireTask, 0, intervalSec, TimeUnit.SECONDS);
 
         jobFutures.put(job.getId(), future);
-        log.info("Registered high-frequency job {} (taskId={}) at {}s interval",
-                job.getId(), job.getTaskId(), intervalSec);
+        log.info("Registered high-frequency job {} at {}s interval",
+                job.getId(), intervalSec);
     }
 
     public void unregisterJob(Long jobId) {

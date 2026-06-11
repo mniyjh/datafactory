@@ -1,0 +1,213 @@
+{
+  "schemaVersion": 3,
+  "nodes": [
+    {
+      "id": "n_mq4vdgxs_763090",
+      "name": "开始节点",
+      "type": "START",
+      "componentCode": "COMP_START",
+      "componentId": "1",
+      "x": 520,
+      "y": 40,
+      "fieldValues": {},
+      "inputParams": [
+        {"paramCode": "a", "paramName": "左操作数", "dataType": "NUMBER", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "10"},
+        {"paramCode": "b", "paramName": "右操作数", "dataType": "NUMBER", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "5"},
+        {"paramCode": "op", "paramName": "运算符", "dataType": "STRING", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "+"}
+      ],
+      "outputParams": [
+        {"paramCode": "a", "paramName": "左操作数", "dataType": "NUMBER", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "10", "defaultValue": "10"},
+        {"paramCode": "b", "paramName": "右操作数", "dataType": "NUMBER", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "5", "defaultValue": "5"},
+        {"paramCode": "op", "paramName": "运算符", "dataType": "STRING", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "+", "defaultValue": "+"}
+      ]
+    },
+    {
+      "id": "n_mq4vdn4k_186813",
+      "name": "条件分支",
+      "type": "流程控制",
+      "componentCode": "COMP_BRANCH",
+      "componentId": "7",
+      "x": 520,
+      "y": 180,
+      "fieldValues": {
+        "branches": [
+          "${op} == '+'",
+          "${op} == '-'",
+          "${op} == '*'",
+          "${op} == '/'"
+        ],
+        "targetNodeIds": [
+          "n_mq4vdjoo_339919",
+          "n_mq4vdk96_709445",
+          "n_mq4vdkqp_139585",
+          "n_mq4vdmd1_173606"
+        ]
+      },
+      "inputParams": [],
+      "outputParams": [
+        {"paramCode": "nextNodeId", "paramName": "命中下游节点ID", "dataType": "STRING", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": ""},
+        {"paramCode": "matchIndex", "paramName": "命中分支索引", "dataType": "NUMBER", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": ""},
+        {"paramCode": "conditionResult", "paramName": "条件结果", "dataType": "BOOLEAN", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": ""}
+      ]
+    },
+    {
+      "id": "n_mq4vdjoo_339919",
+      "name": "加法脚本",
+      "type": "数据处理",
+      "componentCode": "COMP_PYTHON_EXECUTOR",
+      "componentId": "5",
+      "x": 100,
+      "y": 340,
+      "fieldValues": {"scriptCode": "add_script", "result_var": "", "className": "Calculator", "methodName": "execute"},
+      "inputParams": [
+        {"paramCode": "a", "paramName": "左操作数", "dataType": "NUMBER", "requiredFlag": 0, "sourceType": "UPSTREAM_OUTPUT", "sourceValue": {"nodeId": "n_mq4vdgxs_763090", "paramCode": "a"}},
+        {"paramCode": "b", "paramName": "右操作数", "dataType": "NUMBER", "requiredFlag": 0, "sourceType": "UPSTREAM_OUTPUT", "sourceValue": {"nodeId": "n_mq4vdgxs_763090", "paramCode": "b"}}
+      ],
+      "outputParams": [
+        {"paramCode": "sum", "paramName": "和", "dataType": "NUMBER", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "", "defaultValue": ""},
+        {"paramCode": "detail", "paramName": "计算明细", "dataType": "STRING", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "", "defaultValue": ""}
+      ]
+    },
+    {
+      "id": "n_mq4vdk96_709445",
+      "name": "减法脚本",
+      "type": "数据处理",
+      "componentCode": "COMP_PYTHON_EXECUTOR",
+      "componentId": "5",
+      "x": 310,
+      "y": 340,
+      "fieldValues": {"scriptCode": "sub_script", "result_var": "", "className": "Calculator", "methodName": "execute"},
+      "inputParams": [
+        {"paramCode": "a", "paramName": "左操作数", "dataType": "NUMBER", "requiredFlag": 0, "sourceType": "UPSTREAM_OUTPUT", "sourceValue": {"nodeId": "n_mq4vdgxs_763090", "paramCode": "a"}},
+        {"paramCode": "b", "paramName": "右操作数", "dataType": "NUMBER", "requiredFlag": 0, "sourceType": "UPSTREAM_OUTPUT", "sourceValue": {"nodeId": "n_mq4vdgxs_763090", "paramCode": "b"}}
+      ],
+      "outputParams": [
+        {"paramCode": "diff", "paramName": "差", "dataType": "NUMBER", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "", "defaultValue": ""},
+        {"paramCode": "detail", "paramName": "计算明细", "dataType": "STRING", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "", "defaultValue": ""}
+      ]
+    },
+    {
+      "id": "n_mq4vdkqp_139585",
+      "name": "乘法脚本",
+      "type": "数据处理",
+      "componentCode": "COMP_PYTHON_EXECUTOR",
+      "componentId": "5",
+      "x": 520,
+      "y": 340,
+      "fieldValues": {"scriptCode": "mul_script", "result_var": "", "className": "Calculator", "methodName": "execute"},
+      "inputParams": [
+        {"paramCode": "a", "paramName": "左操作数", "dataType": "NUMBER", "requiredFlag": 0, "sourceType": "UPSTREAM_OUTPUT", "sourceValue": {"nodeId": "n_mq4vdgxs_763090", "paramCode": "a"}},
+        {"paramCode": "b", "paramName": "右操作数", "dataType": "NUMBER", "requiredFlag": 0, "sourceType": "UPSTREAM_OUTPUT", "sourceValue": {"nodeId": "n_mq4vdgxs_763090", "paramCode": "b"}}
+      ],
+      "outputParams": [
+        {"paramCode": "product", "paramName": "积", "dataType": "NUMBER", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "", "defaultValue": ""},
+        {"paramCode": "detail", "paramName": "计算明细", "dataType": "STRING", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "", "defaultValue": ""}
+      ]
+    },
+    {
+      "id": "n_mq4vdmd1_173606",
+      "name": "除法脚本",
+      "type": "数据处理",
+      "componentCode": "COMP_PYTHON_EXECUTOR",
+      "componentId": "5",
+      "x": 730,
+      "y": 340,
+      "fieldValues": {"scriptCode": "div_script", "result_var": "", "className": "Calculator", "methodName": "execute"},
+      "inputParams": [
+        {"paramCode": "a", "paramName": "左操作数", "dataType": "NUMBER", "requiredFlag": 0, "sourceType": "UPSTREAM_OUTPUT", "sourceValue": {"nodeId": "n_mq4vdgxs_763090", "paramCode": "a"}},
+        {"paramCode": "b", "paramName": "右操作数", "dataType": "NUMBER", "requiredFlag": 0, "sourceType": "UPSTREAM_OUTPUT", "sourceValue": {"nodeId": "n_mq4vdgxs_763090", "paramCode": "b"}}
+      ],
+      "outputParams": [
+        {"paramCode": "quotient", "paramName": "商", "dataType": "STRING", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "", "defaultValue": ""},
+        {"paramCode": "error", "paramName": "错误信息", "dataType": "STRING", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "", "defaultValue": ""},
+        {"paramCode": "detail", "paramName": "计算明细", "dataType": "STRING", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "", "defaultValue": ""}
+      ]
+    },
+    {
+      "id": "n_end_add",
+      "name": "加法结果",
+      "type": "END",
+      "componentCode": "COMP_END",
+      "componentId": "2",
+      "x": 100,
+      "y": 500,
+      "fieldValues": {},
+      "inputParams": [
+        {"paramCode": "sum", "paramName": "和", "dataType": "NUMBER", "sourceType": "CONST", "sourceValue": ""},
+        {"paramCode": "detail", "paramName": "计算明细", "dataType": "STRING", "sourceType": "CONST", "sourceValue": ""}
+      ],
+      "outputParams": [
+        {"paramCode": "sum", "paramName": "和", "dataType": "NUMBER", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "", "defaultValue": ""},
+        {"paramCode": "detail", "paramName": "计算明细", "dataType": "STRING", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "", "defaultValue": ""}
+      ]
+    },
+    {
+      "id": "n_end_sub",
+      "name": "减法结果",
+      "type": "END",
+      "componentCode": "COMP_END",
+      "componentId": "2",
+      "x": 310,
+      "y": 500,
+      "fieldValues": {},
+      "inputParams": [
+        {"paramCode": "diff", "paramName": "差", "dataType": "NUMBER", "sourceType": "CONST", "sourceValue": ""},
+        {"paramCode": "detail", "paramName": "计算明细", "dataType": "STRING", "sourceType": "CONST", "sourceValue": ""}
+      ],
+      "outputParams": [
+        {"paramCode": "diff", "paramName": "差", "dataType": "NUMBER", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "", "defaultValue": ""},
+        {"paramCode": "detail", "paramName": "计算明细", "dataType": "STRING", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "", "defaultValue": ""}
+      ]
+    },
+    {
+      "id": "n_end_mul",
+      "name": "乘法结果",
+      "type": "END",
+      "componentCode": "COMP_END",
+      "componentId": "2",
+      "x": 520,
+      "y": 500,
+      "fieldValues": {},
+      "inputParams": [
+        {"paramCode": "product", "paramName": "积", "dataType": "NUMBER", "sourceType": "CONST", "sourceValue": ""},
+        {"paramCode": "detail", "paramName": "计算明细", "dataType": "STRING", "sourceType": "CONST", "sourceValue": ""}
+      ],
+      "outputParams": [
+        {"paramCode": "product", "paramName": "积", "dataType": "NUMBER", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "", "defaultValue": ""},
+        {"paramCode": "detail", "paramName": "计算明细", "dataType": "STRING", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "", "defaultValue": ""}
+      ]
+    },
+    {
+      "id": "n_end_div",
+      "name": "除法结果",
+      "type": "END",
+      "componentCode": "COMP_END",
+      "componentId": "2",
+      "x": 730,
+      "y": 500,
+      "fieldValues": {},
+      "inputParams": [
+        {"paramCode": "quotient", "paramName": "商", "dataType": "STRING", "sourceType": "CONST", "sourceValue": ""},
+        {"paramCode": "error", "paramName": "错误信息", "dataType": "STRING", "sourceType": "CONST", "sourceValue": ""},
+        {"paramCode": "detail", "paramName": "计算明细", "dataType": "STRING", "sourceType": "CONST", "sourceValue": ""}
+      ],
+      "outputParams": [
+        {"paramCode": "quotient", "paramName": "商", "dataType": "STRING", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "", "defaultValue": ""},
+        {"paramCode": "error", "paramName": "错误信息", "dataType": "STRING", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "", "defaultValue": ""},
+        {"paramCode": "detail", "paramName": "计算明细", "dataType": "STRING", "requiredFlag": 0, "sourceType": "CONST", "sourceValue": "", "defaultValue": ""}
+      ]
+    }
+  ],
+  "edges": [
+    {"id": "e_s_b",  "source": {"nodeId": "n_mq4vdgxs_763090", "port": "out"}, "target": {"nodeId": "n_mq4vdn4k_186813", "port": "in"}},
+    {"id": "e_b_add","source": {"nodeId": "n_mq4vdn4k_186813", "port": "out"}, "target": {"nodeId": "n_mq4vdjoo_339919", "port": "in"}},
+    {"id": "e_b_sub","source": {"nodeId": "n_mq4vdn4k_186813", "port": "out"}, "target": {"nodeId": "n_mq4vdk96_709445", "port": "in"}},
+    {"id": "e_b_mul","source": {"nodeId": "n_mq4vdn4k_186813", "port": "out"}, "target": {"nodeId": "n_mq4vdkqp_139585", "port": "in"}},
+    {"id": "e_b_div","source": {"nodeId": "n_mq4vdn4k_186813", "port": "out"}, "target": {"nodeId": "n_mq4vdmd1_173606", "port": "in"}},
+    {"id": "e_add",  "source": {"nodeId": "n_mq4vdjoo_339919", "port": "out"}, "target": {"nodeId": "n_end_add", "port": "in"}},
+    {"id": "e_sub",  "source": {"nodeId": "n_mq4vdk96_709445", "port": "out"}, "target": {"nodeId": "n_end_sub", "port": "in"}},
+    {"id": "e_mul",  "source": {"nodeId": "n_mq4vdkqp_139585", "port": "out"}, "target": {"nodeId": "n_end_mul", "port": "in"}},
+    {"id": "e_div",  "source": {"nodeId": "n_mq4vdmd1_173606", "port": "out"}, "target": {"nodeId": "n_end_div", "port": "in"}}
+  ],
+  "viewport": {"scale": 0.7, "pan": {"x": 0, "y": 0}}
+}

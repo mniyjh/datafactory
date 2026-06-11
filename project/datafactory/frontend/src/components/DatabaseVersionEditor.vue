@@ -1,5 +1,5 @@
 <template>
-  <a-modal :open="open" @update:open="(val) => { if (!val) emit('close'); }"
+  <div ref="root"><a-modal :getContainer="() => root" :zIndex="1050" :open="open" @update:open="(val) => { if (!val) emit('close'); }"
     :title="titleText" :width="800" :footer="null" :centered="true"
     :maskClosable="false" :keyboard="false" destroyOnClose wrap-class-name="env-modal-fixed">
     <div class="editor-wrap">
@@ -39,12 +39,14 @@
       </div>
     </div>
   </a-modal>
+  </div>
 </template>
 
 <script setup>
 import { computed, reactive, watch, ref } from 'vue';
 import { message } from 'ant-design-vue';
 import { databaseApi } from '../api/databaseApi';
+const root = ref(null);
 
 const props = defineProps({
   open: Boolean,

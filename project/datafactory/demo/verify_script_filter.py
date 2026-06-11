@@ -1,5 +1,5 @@
 """
-验证性脚本 - 用于测试 COMP_SCRIPT + COMP_FILTER 组件联动
+验证性脚本 - 用于测试 COMP_PYTHON_EXECUTOR + COMP_FILTER 组件联动
 功能：接收输入参数，生成模拟订单数据，输出 rows 供 FILTER 组件过滤
 
 输入(stdin JSON):

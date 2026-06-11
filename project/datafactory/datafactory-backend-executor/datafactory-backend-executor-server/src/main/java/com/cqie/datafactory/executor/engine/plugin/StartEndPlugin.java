@@ -16,11 +16,14 @@ public class StartEndPlugin implements ComponentPlugin {
     @Override
     public Map<String, Object> execute(PluginContext context) {
         Map<String, Object> outputs = new HashMap<>();
+        Map<String, Object> inputs = context.getResolvedInputs();
         for (IoParamDef def : context.getNode().getOutputParams()) {
             String code = def.getParamCode();
-            Object resolvedVal = context.getResolvedInputs().get(code);
-            if (resolvedVal != null && !(resolvedVal instanceof Map)) {
-                outputs.put(code, resolvedVal);
+            if (inputs.containsKey(code)) {
+                Object resolvedVal = inputs.get(code);
+                if (!(resolvedVal instanceof Map)) {
+                    outputs.put(code, resolvedVal);
+                }
             } else if (def.getDefaultValue() != null && !def.getDefaultValue().isBlank()) {
                 outputs.put(code, def.getDefaultValue());
             } else if (def.getSourceValue() != null && !def.getSourceValue().isNull()

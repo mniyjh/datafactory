@@ -31,7 +31,7 @@
       "id": "sc1",
       "type": "SCRIPT",
       "name": "加法计算",
-      "componentCode": "COMP_SCRIPT",
+      "componentCode": "COMP_PYTHON_EXECUTOR",
       "componentId": 5,
       "position": { "x": 380, "y": 250 },
       "fieldValues": {

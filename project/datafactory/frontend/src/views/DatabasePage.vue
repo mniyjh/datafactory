@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap" ref="pageRoot">
     <div class="toolbar">
       <span class="keyword-label">关键字：</span>
       <a-input v-model:value="keyword" placeholder="请输入数据源名称或编码" />
@@ -34,7 +34,7 @@
       </template>
     </a-table>
 
-    <a-modal v-model:open="formVisible" :title="isEdit ? '编辑数据库' : '新建数据库'" :width="760" :footer="null" destroyOnClose>
+    <a-modal v-model:open="formVisible" :title="isEdit ? '编辑数据库' : '新建数据库'" :width="760" :footer="null" destroyOnClose :getContainer="() => pageRoot">
       <a-form ref="formRef" :model="formState" :rules="formRules" :label-col="{ style: { width: '130px' } }" class="db-form">
         <a-form-item label="数据库编码" required name="code">
           <a-input v-model:value="formState.code" :disabled="isEdit" placeholder="例如：DB_MYSQL_001" />
@@ -66,7 +66,7 @@
       </div>
     </a-modal>
 
-    <a-modal v-model:open="detailVisible" title="数据库详情" :width="760" :footer="null" destroyOnClose>
+    <a-modal v-model:open="detailVisible" title="数据库详情" :width="760" :footer="null" destroyOnClose :getContainer="() => pageRoot">
       <a-descriptions bordered :column="1" size="middle">
         <a-descriptions-item label="ID">{{ detailRow.id }}</a-descriptions-item>
         <a-descriptions-item label="编码">{{ detailRow.code }}</a-descriptions-item>
@@ -97,6 +97,7 @@
       :keyboard="false"
       destroyOnClose
       wrap-class-name="env-modal-fixed"
+      :getContainer="() => pageRoot"
     >
       <div class="env-modal-body">
         <a-tabs v-model:activeKey="activeEnvTab" @change="handleEnvTabChange">
@@ -145,10 +146,12 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'DatabasePage' })
 import { computed, reactive, ref, onMounted } from 'vue';
 import { message } from 'ant-design-vue';
 import DatabaseVersionEditor from '../components/DatabaseVersionEditor.vue';
 import { databaseApi } from '../api/databaseApi';
+const pageRoot = ref(null);
 
 const keyword = ref('');
 const loading = ref(false);

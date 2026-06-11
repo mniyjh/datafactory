@@ -1,7 +1,7 @@
 {
   "_说明": "============================================================",
   "_说明2": "数据工厂综合任务配置 — 使用全部 8 种组件",
-  "_说明3": "组件清单: COMP_START / COMP_DB_QUERY / COMP_API_CALL / COMP_SCRIPT / COMP_FILTER / COMP_BRANCH / COMP_SUB_TASK / COMP_END",
+  "_说明3": "组件清单: COMP_START / COMP_DB_QUERY / COMP_API_CALL / COMP_PYTHON_EXECUTOR / COMP_FILTER / COMP_BRANCH / COMP_SUB_TASK / COMP_END",
   "_说明4": "免费 API: https://jsonplaceholder.typicode.com/users (无需认证)",
   "_说明5": "============================================================",
 
@@ -71,7 +71,7 @@
           "type": "SCRIPT",
           "name": "Python数据分析",
           "label": "SCRIPT-综合处理",
-          "componentCode": "COMP_SCRIPT",
+          "componentCode": "COMP_PYTHON_EXECUTOR",
           "componentId": 5,
           "position": {"x": 480, "y": 250},
           "fieldValues": {
@@ -295,7 +295,7 @@
       "fieldValues入参": {"url": "https://jsonplaceholder.typicode.com/users", "method": "GET"},
       "出参": {"statusCode": "200", "body": "10条用户JSON数据"}
     },
-    "COMP_SCRIPT (脚本执行)": {
+    "COMP_PYTHON_EXECUTOR (PYTHON执行器)": {
       "nodeId": "sc1",
       "作用": "Python脚本合并DB+API数据，计算统计指标",
       "入参": "stdin JSON: {dbEmployees: {rows, rowCount}, apiUsers: {statusCode, body}}",

@@ -45,8 +45,11 @@ public class DslValidator {
                 .filter(n -> "START".equalsIgnoreCase(n.getType())).count();
         long endCount = dsl.getNodes().stream()
                 .filter(n -> "END".equalsIgnoreCase(n.getType())).count();
-        if (startCount != 1 || endCount != 1) {
-            throw new BusinessException("任务配置必须包含且仅包含一个START节点和一个END节点");
+        if (startCount != 1) {
+            throw new BusinessException("任务配置必须包含且仅包含一个START节点");
+        }
+        if (endCount < 1) {
+            throw new BusinessException("任务配置至少需要一个END节点");
         }
     }
 
@@ -128,13 +131,32 @@ public class DslValidator {
     }
 
     private void validateParamCompatibility(DslModel dsl) {
-        Map<String, Set<String>> upstreamMap = new HashMap<>();
-        for (EdgeDef e : dsl.getEdges()) {
-            upstreamMap.computeIfAbsent(e.getTargetNodeId(), k -> new HashSet<>()).add(e.getSourceNodeId());
+        // 构建传递闭包上游：BFS收集所有上游节点（不只是直连）
+        Map<String, Set<String>> allUpstreamMap = new HashMap<>();
+        for (NodeDef n : dsl.getNodes()) {
+            Set<String> allUpstream = new HashSet<>();
+            Deque<String> queue = new ArrayDeque<>();
+            // 找直接上游作为起点
+            for (EdgeDef e : dsl.getEdges()) {
+                if (e.getTargetNodeId().equals(n.getId())) {
+                    queue.add(e.getSourceNodeId());
+                }
+            }
+            while (!queue.isEmpty()) {
+                String current = queue.poll();
+                if (allUpstream.add(current)) {
+                    for (EdgeDef e : dsl.getEdges()) {
+                        if (e.getTargetNodeId().equals(current)) {
+                            queue.add(e.getSourceNodeId());
+                        }
+                    }
+                }
+            }
+            allUpstreamMap.put(n.getId(), allUpstream);
         }
 
         for (NodeDef node : dsl.getNodes()) {
-            Set<String> validUpstreamNodes = upstreamMap.getOrDefault(node.getId(), Set.of());
+            Set<String> validUpstreamNodes = allUpstreamMap.getOrDefault(node.getId(), Set.of());
             for (IoParamDef p : node.getInputParams()) {
                 if ("UPSTREAM_OUTPUT".equals(p.getSourceType()) && p.getSourceValue() != null) {
                     String refNodeId = null;
@@ -151,7 +173,7 @@ public class DslValidator {
                         }
                     }
                     if (refNodeId != null && !validUpstreamNodes.contains(refNodeId)) {
-                        throw new BusinessException("上游输出引用节点不在直连上游中: " + refNodeId);
+                        throw new BusinessException("上游输出引用节点不在可达上游中: " + refNodeId);
                     }
                     if (refNodeId != null && refParamCode != null) {
                         NodeDef upstream = dsl.getNodeById(refNodeId);

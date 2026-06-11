@@ -1,5 +1,5 @@
 {
-  "_任务说明": "验证 COMP_SCRIPT + COMP_FILTER 的 IO 参数联动",
+  "_任务说明": "验证 COMP_PYTHON_EXECUTOR + COMP_FILTER 的 IO 参数联动",
   "_流程": "START(outputParams定义初始参数) → SCRIPT(inputParams引用START, outputParams定义输出) → FILTER(sourceNodeId指向SCRIPT, outputParams定义过滤结果) → END",
 
   "task": {
@@ -57,7 +57,7 @@
         "id": "sc1",
         "type": "SCRIPT",
         "name": "生成模拟订单",
-        "componentCode": "COMP_SCRIPT",
+        "componentCode": "COMP_PYTHON_EXECUTOR",
         "componentId": 5,
         "position": {"x": 340, "y": 200},
         "fieldValues": {

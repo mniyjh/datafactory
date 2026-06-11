@@ -41,6 +41,7 @@ public class FieldOptionsService {
             case "API_CALL" -> resolveApiCall(dto);
             case "SCRIPT" -> resolveScript(dto);
             case "TASK" -> resolveTask(dto);
+            case "BRANCH_LOAD" -> resolveBranchLoad(dto);
             default -> throw new BusinessException("不支持的选项数据源类型: " + sourceType);
         };
     }
@@ -195,11 +196,15 @@ public class FieldOptionsService {
 
     private List<Map<String, Object>> resolveScript(FieldOptionsResolveDTO dto) {
         if (dto.getScriptId() == null && dto.getScriptVersionId() == null) {
+            String typeFilter = (dto.getScriptType() != null && !dto.getScriptType().isBlank())
+                ? "AND s.script_type = '" + dto.getScriptType().toUpperCase().replace("'", "''") + "' "
+                : "";
             return jdbcTemplate.queryForList(
                 "SELECT DISTINCT s.script_code AS value, s.script_name AS label " +
                 "FROM script s INNER JOIN script_version sv ON sv.script_id = s.id " +
                 "WHERE s.status = 1 AND sv.environment = 'PROD' " +
-                "AND sv.is_current = 1 AND sv.publish_status = 1 ORDER BY s.script_name");
+                "AND sv.is_current = 1 AND sv.publish_status = 1 " + typeFilter +
+                "ORDER BY s.script_name");
         }
         // 解析脚本版本获取执行详情
         Map<String, Object> version = resolveScriptVersion(dto);
@@ -237,7 +242,7 @@ public class FieldOptionsService {
             boolean finished = process.waitFor(timeout, java.util.concurrent.TimeUnit.SECONDS);
             if (!finished) {
                 process.destroyForcibly();
-                throw new BusinessException("脚本执行超时(" + timeout + "s)");
+                throw new BusinessException("Python脚本执行超时(" + timeout + "s)");
             }
 
             String stdout;
@@ -252,7 +257,7 @@ public class FieldOptionsService {
                         new java.io.InputStreamReader(process.getErrorStream(), java.nio.charset.StandardCharsets.UTF_8))) {
                     stderr = br.lines().reduce("", (a, b) -> a.isEmpty() ? b : a + "\n" + b);
                 }
-                throw new BusinessException("脚本执行失败(exitCode=" + process.exitValue() + "): " + stderr);
+                throw new BusinessException("Python脚本执行失败(exitCode=" + process.exitValue() + "): " + stderr);
             }
 
             @SuppressWarnings("unchecked")
@@ -298,5 +303,25 @@ public class FieldOptionsService {
             "FROM task t INNER JOIN task_dsl td ON td.task_id = t.id " +
             "WHERE t.status = 1 AND td.environment = 'PROD' " +
             "AND td.is_current = 1 AND td.publish_status = 1 ORDER BY t.task_name");
+    }
+
+    /**
+     * 分支加载: 动态加载当前节点在画布中通过连接线连接的下游节点
+     */
+    private List<Map<String, Object>> resolveBranchLoad(FieldOptionsResolveDTO dto) {
+        if (dto.getTaskDslId() == null || dto.getNodeId() == null || dto.getNodeId().isBlank()) {
+            return List.of();
+        }
+        return jdbcTemplate.queryForList(
+            "SELECT ni.node_id AS value, ni.node_name AS label " +
+            "FROM node_instance ni " +
+            "WHERE ni.task_dsl_id = ? AND ni.node_id IN (" +
+            "  SELECT JSON_UNQUOTE(JSON_EXTRACT(edge.value, '$.target.nodeId')) " +
+            "  FROM task_dsl td " +
+            "  CROSS JOIN JSON_TABLE(td.dsl_content, '$.edges[*]' COLUMNS(value JSON PATH '$')) AS edge " +
+            "  WHERE td.id = ? " +
+            "  AND JSON_UNQUOTE(JSON_EXTRACT(edge.value, '$.source.nodeId')) = ?" +
+            ") ORDER BY ni.node_name",
+            dto.getTaskDslId(), dto.getTaskDslId(), dto.getNodeId());
     }
 }

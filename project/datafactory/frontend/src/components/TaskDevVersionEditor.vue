@@ -1,5 +1,5 @@
 <template>
-  <a-modal
+  <div ref="root"><a-modal :getContainer="() => root" :zIndex="1050"
     :open="open"
     @update:open="(val) => { if (!val) emit('close'); }"
     @cancel="emit('close')"
@@ -126,6 +126,7 @@
 
     <a-modal
       v-model:open="nodeEditorVisible"
+      :getContainer="() => root" :zIndex="1100"
       :title="'组件属性'"
       :width="1120"
       :footer="null"
@@ -153,6 +154,41 @@
 
         <a-tabs v-model:activeKey="nodeEditorTab">
           <a-tab-pane key="field" tab="组件字段">
+            <!-- BRANCH 组件：分支规则配置（表达式 + 下游节点组合） -->
+            <template v-if="isBranchComponent">
+              <div class="branch-rules-section">
+                <div class="branch-rules-title">分支规则配置</div>
+                <div class="branch-rules-tip">每条规则对应一个下游节点，表达式从上到下求值，第一个为 true 的命中。修改画布连线后重新打开此面板即可刷新。</div>
+                <div v-for="(item, idx) in branchItems" :key="idx" class="branch-rule-card">
+                  <div class="branch-rule-header">
+                    <span class="branch-rule-index">分支 {{ idx + 1 }}</span>
+                    <span class="branch-rule-target">→ {{ item.targetNodeName || '(未选择)' }}</span>
+                  </div>
+                  <div class="branch-rule-body">
+                    <div class="branch-rule-field">
+                      <label class="branch-rule-label">条件表达式</label>
+                      <a-textarea v-model:value="item.expression" :disabled="readonly" :rows="2" placeholder="Aviator表达式，如 ${result} > 10" @change="onBranchExpressionChange" />
+                    </div>
+                    <div class="branch-rule-field">
+                      <label class="branch-rule-label">目标节点</label>
+                      <a-select
+                        v-model:value="item.targetNodeId"
+                        :disabled="readonly"
+                        style="width:100%"
+                        :options="branchNodeOptions"
+                        :placeholder="'请选择下游节点'"
+                        @change="onBranchTargetChange"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div v-if="branchItems.length === 0" style="color:#888;padding:16px;text-align:center;">
+                  暂无下游节点连接，请先在画布中将此节点连接到下游组件
+                </div>
+              </div>
+            </template>
+            <!-- 非BRANCH组件：标准字段渲染 -->
+            <template v-else>
             <div class="field-preview-grid">
               <div v-for="record in sortedNodeFields" :key="record.fieldCode" class="field-preview-card">
                 <div class="field-preview-title">{{ record.fieldName || record.fieldCode }}（{{ valueTypeLabelMap[record.valueType || 'STRING'] || (record.valueType || 'STRING') }}）</div>
@@ -190,6 +226,7 @@
                 </div>
               </div>
             </div>
+            </template>
           </a-tab-pane>
           <a-tab-pane key="input" tab="输入参数">
             <a-space style="margin-bottom:8px;">
@@ -258,6 +295,7 @@
       </div>
     </a-modal>
   </a-modal>
+  </div>
 </template>
 
 <script setup>
@@ -265,6 +303,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { componentApi } from '../api/componentApi';
 import { taskApi } from '../api/task';
 import { Modal, message } from 'ant-design-vue';
+const root = ref(null);
 
 const props = defineProps({ open: Boolean, versionData: [Object, String], initialDsl: [Object, String], environment: String, readonly: Boolean });
 
@@ -298,11 +337,8 @@ const valueTypeOptions = [
   { value: 'JSON', label: 'JSON' }
 ];
 const widgetTypeOptions = [
-  { value: 'INPUT', label: '单行输入框' },
   { value: 'TEXTAREA', label: '多行文本框' },
-  { value: 'NUMBER', label: '数字输入框' },
   { value: 'SWITCH', label: '开关' },
-  { value: 'SELECT', label: '下拉选择' },
   { value: 'MULTI_SELECT', label: '多选下拉' },
   { value: 'DATE_PICKER', label: '日期选择器' }
 ];
@@ -491,6 +527,92 @@ const isStartOrEndNode = () => {
   return node && (isStartNode(node) || isEndNode(node));
 };
 
+// ========== BRANCH 组件分支规则配置 ==========
+const isBranchComponent = computed(() => {
+  const node = selectedNode.value;
+  return node && String(node.componentCode || '').toUpperCase() === 'COMP_BRANCH';
+});
+
+const branchItems = ref([]);
+
+// 从画布 outgoing edges 获取下游节点选项
+const branchNodeOptions = computed(() => {
+  const node = selectedNode.value;
+  if (!node) return [];
+  const outgoingEdges = edges.value.filter(e => {
+    const sourceId = getEdgeNodeId(e, 'source');
+    return sourceId === node.id;
+  });
+  return outgoingEdges.map(e => {
+    const targetId = getEdgeNodeId(e, 'target');
+    const targetNode = nodes.value.find(n => n.id === targetId);
+    return {
+      value: targetId,
+      label: targetNode ? targetNode.name : targetId
+    };
+  });
+});
+
+// 同步分支规则：每条出边生成一个表达式+目标节点组合
+const syncBranchItemsFromEdges = () => {
+  const node = selectedNode.value;
+  if (!node) return;
+  const outgoingEdges = edges.value.filter(e => {
+    const sourceId = getEdgeNodeId(e, 'source');
+    return sourceId === node.id;
+  });
+
+  // 读取已有 fieldValues，兼容新旧两种格式
+  const rawBranches = Array.isArray(node.fieldValues?.branches)
+    ? node.fieldValues.branches : [];
+  // 兼容旧格式: [{expression:"...", targetNodeId:"..."}] → 提取 expression
+  const existingBranches = rawBranches.map(b => {
+    if (typeof b === 'object' && b !== null) {
+      return b.expression || b.expr || '';
+    }
+    return String(b || '');
+  });
+  const existingTargetIds = Array.isArray(node.fieldValues?.targetNodeIds)
+    ? node.fieldValues.targetNodeIds : [];
+
+  branchItems.value = outgoingEdges.map((e, idx) => {
+    const targetId = getEdgeNodeId(e, 'target');
+    const targetNode = nodes.value.find(n => n.id === targetId);
+    return {
+      expression: existingBranches[idx] || '',
+      targetNodeId: existingTargetIds[idx] || targetId || '',
+      targetNodeName: targetNode ? targetNode.name : (targetId || '')
+    };
+  });
+};
+
+const onBranchExpressionChange = () => {
+  // 实时同步到 selectedNode.fieldValues.branches
+  const node = selectedNode.value;
+  if (!node) return;
+  if (!node.fieldValues) node.fieldValues = {};
+  node.fieldValues.branches = branchItems.value.map(item => item.expression);
+};
+
+const onBranchTargetChange = () => {
+  // 实时同步到 selectedNode.fieldValues.targetNodeIds
+  const node = selectedNode.value;
+  if (!node) return;
+  if (!node.fieldValues) node.fieldValues = {};
+  node.fieldValues.targetNodeIds = branchItems.value.map(item => item.targetNodeId);
+};
+
+// 将 branchItems 写回 node.fieldValues
+const persistBranchItemsToNode = () => {
+  const node = selectedNode.value;
+  if (!node) return;
+  if (!node.fieldValues) node.fieldValues = {};
+  node.fieldValues.branches = branchItems.value.map(item => item.expression);
+  node.fieldValues.targetNodeIds = branchItems.value.map(item => item.targetNodeId);
+};
+
+// ========== BRANCH 组件分支规则配置结束 ==========
+
 // 将 nodeInputParams 同步到 nodeOutputParams（仅 START/END 节点）
 const syncOutputFromInput = () => {
   if (!isStartOrEndNode()) return;
@@ -551,7 +673,24 @@ const normalizeWidgetProps = (raw) => {
 };
 
 const resolveWidgetOptions = (record = {}) => {
+  // BRANCH_LOAD: 从画布边缘动态加载下游节点
   const widgetProps = normalizeWidgetProps(record.widgetProps);
+  if (widgetProps.optionsSource?.sourceType === 'BRANCH_LOAD') {
+    const node = selectedNode.value;
+    if (!node) return [];
+    const outgoingEdges = edges.value.filter(e => {
+      const sourceId = getEdgeNodeId(e, 'source');
+      return sourceId === node.id;
+    });
+    return outgoingEdges.map(e => {
+      const targetId = getEdgeNodeId(e, 'target');
+      const targetNode = nodes.value.find(n => n.id === targetId);
+      return {
+        value: targetId,
+        label: targetNode ? targetNode.name : targetId
+      };
+    });
+  }
   const rawOptions = widgetProps.options || widgetProps.optionList || record.optionList || record.options || record.optionContent || [];
   if (Array.isArray(record._resolvedOptions) && record._resolvedOptions.length > 0) {
     return record._resolvedOptions;
@@ -562,6 +701,8 @@ const resolveWidgetOptions = (record = {}) => {
 const hasDynamicOptionSource = (record = {}) => {
   const widgetProps = normalizeWidgetProps(record.widgetProps);
   const src = widgetProps.optionsSource;
+  // BRANCH_LOAD 在前端本地从画布连线解析，不走后端API
+  if (src && src.sourceType === 'BRANCH_LOAD') return false;
   return !!(src && src.sourceType);
 };
 
@@ -615,6 +756,9 @@ const loadDynamicOptions = async (record) => {
         payload.scriptVersionId = src.scriptVersionId;
       } else if (src.scriptId) {
         payload.scriptId = src.scriptId;
+      }
+      if (src.scriptType) {
+        payload.scriptType = src.scriptType;
       }
     } else if (src.sourceType === 'TASK') {
       // TASK 源无需额外参数，直接加载已发布任务列表
@@ -810,7 +954,7 @@ const loadPalette = async () => {
       return {
         id: comp.id,
         type: componentType,      // ← 组件分类（"数据接入"/"数据处理"/"流程控制"）
-        label: componentName,     // ← 组件名称（"数据过滤"/"脚本执行" 等）
+        label: componentName,     // ← 组件名称（"数据过滤"/"PYTHON执行器" 等）
         code: componentCode,      // ← 组件编码（"COMP_FILTER" 等）
         componentId: comp.id,
         groupCode: category,      // ← 分类编码
@@ -1298,6 +1442,11 @@ const openNodeEditor = async (nodeId) => {
     if (hasDynamicOptionSource(f)) loadDynamicOptions(f);
   });
 
+  // BRANCH 组件：同步分支规则
+  if (isBranchComponent.value) {
+    syncBranchItemsFromEdges();
+  }
+
   nodeEditorVisible.value = true;
 };
 
@@ -1315,6 +1464,12 @@ const onNodeEditorCancel = () => {
       fieldValues[item.fieldCode] = val;
     });
     node.fieldValues = fieldValues;
+
+    // BRANCH 组件：持久化分支规则数据
+    if (isBranchComponent.value) {
+      persistBranchItemsToNode();
+    }
+
     node.inputParams = nodeInputParams.value.map((item) => ({
       paramCode: item.paramCode,
       paramName: item.paramName,
@@ -1340,15 +1495,27 @@ const onNodeEditorCancel = () => {
 
 const buildUpstreamTreeData = (nodeId) => {
   if (!nodeId) return [];
-  const upstreamIds = edges.value
-    .filter((edge) => getEdgeNodeId(edge, 'target') === nodeId)
-    .map((edge) => getEdgeNodeId(edge, 'source'));
-  return upstreamIds.map((id) => {
+  // BFS 收集所有上游节点（不只是直接连线）
+  const upstreamIds = new Set();
+  const queue = [nodeId];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    edges.value
+      .filter((edge) => getEdgeNodeId(edge, 'target') === current)
+      .forEach((edge) => {
+        const srcId = getEdgeNodeId(edge, 'source');
+        if (srcId && !upstreamIds.has(srcId)) {
+          upstreamIds.add(srcId);
+          queue.push(srcId);
+        }
+      });
+  }
+  return Array.from(upstreamIds).map((id) => {
     const upstreamNode = nodes.value.find(n => n.id === id);
     if (!upstreamNode) return null;
     // START/END 节点用 inputParams（输出和输入一致），其他节点用 outputParams
     let params = (upstreamNode.outputParams || []);
-    if (!params.length && (upstreamNode.type === 'START' || upstreamNode.type === 'END')) {
+    if (!params.length && (isStartNode(upstreamNode) || isEndNode(upstreamNode))) {
       params = (upstreamNode.inputParams || []);
     }
     return {
@@ -1413,10 +1580,22 @@ const parseUpstreamValue = (val) => {
 
 const buildUpstreamCascaderOptions = (nodeId) => {
   if (!nodeId) return [];
-  const directUpstreamIds = edges.value
-    .filter((edge) => getEdgeNodeId(edge, 'target') === nodeId)
-    .map((edge) => getEdgeNodeId(edge, 'source'));
-  return directUpstreamIds.map((id) => {
+  // BFS 收集所有上游节点（不只是直接连线）
+  const upstreamIds = new Set();
+  const queue = [nodeId];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    edges.value
+      .filter((edge) => getEdgeNodeId(edge, 'target') === current)
+      .forEach((edge) => {
+        const srcId = getEdgeNodeId(edge, 'source');
+        if (srcId && !upstreamIds.has(srcId)) {
+          upstreamIds.add(srcId);
+          queue.push(srcId);
+        }
+      });
+  }
+  return Array.from(upstreamIds).map((id) => {
     const node = nodes.value.find(n => n.id === id);
     const outputs = (node?.outputParams || []);
     return {
@@ -1599,8 +1778,12 @@ const onEdgeContextMenu = (edgeId) => {
 const validateGraphBeforeSave = async () => {
   const startCount = nodes.value.filter(n => isStartNode(n)).length;
   const endCount   = nodes.value.filter(n => isEndNode(n)).length;
-  if (startCount !== 1 || endCount !== 1) {
-    message.warning(`流程必须且仅包含1个开始组件和1个结束组件（当前: ${startCount}个开始, ${endCount}个结束）`);
+  if (startCount !== 1) {
+    message.warning(`流程必须且仅包含1个开始组件（当前: ${startCount}个开始）`);
+    return false;
+  }
+  if (endCount < 1) {
+    message.warning('流程至少需要1个结束组件');
     return false;
   }
 
@@ -1814,4 +1997,17 @@ onBeforeUnmount(() => {
 .field-preview-default { font-size: 12px; color: #6b7280; }
 .param-fixed-text { color: #999; line-height: 32px; }
 .footer-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* BRANCH 组件分支规则配置 */
+.branch-rules-section { display: flex; flex-direction: column; gap: 12px; }
+.branch-rules-title { font-weight: 600; font-size: 15px; color: #1f2937; }
+.branch-rules-tip { font-size: 12px; color: #888; margin-bottom: 4px; }
+.branch-rule-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 16px; background: #fafafa; transition: border-color .2s; }
+.branch-rule-card:hover { border-color: #1677ff; }
+.branch-rule-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.branch-rule-index { font-weight: 600; color: #1677ff; font-size: 13px; }
+.branch-rule-target { color: #666; font-size: 12px; }
+.branch-rule-body { display: flex; gap: 12px; }
+.branch-rule-field { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.branch-rule-label { font-size: 12px; color: #888; font-weight: 500; }
 </style>

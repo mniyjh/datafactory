@@ -42,6 +42,7 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'DashboardPage' })
 import { ref, onMounted, computed, watch } from 'vue';
 import { dashboardApi } from '../api/dashboardApi';
 import { taskApi } from '../api/task';

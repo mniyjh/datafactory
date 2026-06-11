@@ -1,5 +1,5 @@
 <template>
-  <a-modal
+  <div ref="root"><a-modal :getContainer="() => root" :zIndex="1050"
     :open="open"
     title="版本发布确认"
     @ok="handleOk"
@@ -27,10 +27,12 @@
       </div>
     </div>
   </a-modal>
+  </div>
 </template>
 
 <script setup>
 import { ref, watch } from 'vue';
+const root = ref(null);
 
 const props = defineProps({
   open: Boolean,

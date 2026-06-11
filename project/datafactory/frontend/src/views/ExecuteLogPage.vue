@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap" ref="pageRoot">
     <div class="toolbar toolbar-wrap">
       <span class="keyword-label">任务ID：</span>
       <a-input v-model:value="filters.taskId" placeholder="请输入任务ID" style="width: 160px" />
@@ -59,7 +59,7 @@
 
     <!-- 执行详情弹窗 -->
     <a-modal v-model:open="detailVisible" title="执行详情" :width="900" :footer="null"
-      :body-style="{ maxHeight: '70vh', overflowY: 'auto', padding: '16px 24px' }">
+      :body-style="{ maxHeight: '70vh', overflowY: 'auto', padding: '16px 24px' }" :getContainer="() => pageRoot">
       <!-- 同批任务切换下拉框 -->
       <div v-if="scheduleLogs.length >= 1" style="margin-bottom:12px;display:flex;gap:8px;align-items:center;">
         <span style="font-size:13px;color:#666;white-space:nowrap;">关联任务 ({{ scheduleLogs.length }}) :</span>
@@ -123,7 +123,7 @@
 
     <!-- 组件日志可视化弹窗 -->
     <a-modal v-model:open="nodeLogVisible" title="组件执行日志" :width="1000" :footer="null"
-      :body-style="{ maxHeight: '70vh', overflowY: 'auto', padding: '16px 24px' }">
+      :body-style="{ maxHeight: '70vh', overflowY: 'auto', padding: '16px 24px' }" :getContainer="() => pageRoot">
       <div>
       <div class="node-log-layout">
         <!-- 左侧流程示意 -->
@@ -201,6 +201,7 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'ExecuteLogPage' })
 import { ref, reactive, onMounted, watch, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
@@ -208,6 +209,7 @@ import dayjs from 'dayjs';
 import { taskApi } from '../api/task';
 import { scheduleApi } from '../api/scheduleApi';
 import { executionStore } from '../store/execution';
+const pageRoot = ref(null);
 
 const route = useRoute();
 const router = useRouter();

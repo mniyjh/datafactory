@@ -1,5 +1,5 @@
 <template>
-  <a-modal :open="open" @update:open="(val) => { if (!val) emit('update:open', false); }"
+  <div ref="root"><a-modal :getContainer="() => root" :zIndex="1050" :open="open" @update:open="(val) => { if (!val) emit('update:open', false); }"
     title="脚本测试" :width="1100" :footer="null" :centered="true"
     :maskClosable="false" :keyboard="false" destroyOnClose>
     <div class="test-modal-layout">
@@ -28,7 +28,7 @@
           <div v-if="!executed && !executing" class="placeholder">点击「执行」按钮开始测试</div>
 
           <div v-if="executing" class="status-banner running">
-            <LoadingOutlined spin /> 脚本执行中...
+            <LoadingOutlined spin /> Python脚本执行中...
           </div>
 
           <div v-if="executed && !executing" class="status-banner" :class="resultSuccess ? 'success' : 'failure'">
@@ -53,6 +53,7 @@
       <a-button type="primary" @click="handleExecute" :loading="executing">执行</a-button>
     </div>
   </a-modal>
+  </div>
 </template>
 
 <script setup>
@@ -60,6 +61,7 @@ import { ref, watch } from 'vue';
 import { message } from 'ant-design-vue';
 import { LoadingOutlined } from '@ant-design/icons-vue';
 import { scriptApi } from '../api/scriptApi';
+const root = ref(null);
 
 const props = defineProps({
   open: Boolean,
@@ -99,9 +101,9 @@ const handleExecute = async () => {
     resultSuccess.value = data.success === true || data.exitCode === 0;
     executed.value = true;
     if (resultSuccess.value) {
-      message.success('脚本执行完成');
+      message.success('Python脚本执行完成');
     } else {
-      message.error(data.error || data.stderr || '脚本执行返回非零退出码');
+      message.error(data.error || data.stderr || 'Python脚本执行返回非零退出码');
     }
   } catch (e) {
     resultData.value = { error: e.message };
