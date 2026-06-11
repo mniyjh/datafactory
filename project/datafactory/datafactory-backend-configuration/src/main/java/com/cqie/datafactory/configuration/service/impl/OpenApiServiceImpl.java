@@ -165,7 +165,9 @@ public class OpenApiServiceImpl extends ServiceImpl<OpenApiMapper, OpenApi> impl
     if (api.getStatus() == null || api.getStatus() != 1) {
       throw new RuntimeException("开放接口已禁用");
     }
-    if (StringUtils.hasText(api.getAppSecret())) {
+    // 认证校验：根据 authType 决定认证方式
+    String authType = api.getAuthType() != null ? api.getAuthType().trim() : "";
+    if (!"None".equalsIgnoreCase(authType) && StringUtils.hasText(api.getAppSecret())) {
       if (!StringUtils.hasText(appSecret) || !api.getAppSecret().equals(appSecret)) {
         throw new RuntimeException("appSecret校验失败");
       }
@@ -174,16 +176,26 @@ public class OpenApiServiceImpl extends ServiceImpl<OpenApiMapper, OpenApi> impl
       throw new RuntimeException("开放接口未绑定任务");
     }
 
-    // 限流检查
+    // 限流检查（基于内存计数器的简易限流，单实例有效）
     int limitCount = api.getLimitCount() != null ? api.getLimitCount() : 0;
     if (limitCount > 0) {
-      String counterKey = code + "_" + (System.currentTimeMillis() / 1000);
+      long nowSec = System.currentTimeMillis() / 1000;
+      String counterKey = code + "_" + nowSec;
       long[] counter = rateLimitCounters.computeIfAbsent(counterKey, k -> new long[1]);
       synchronized (counter) {
         if (counter[0] >= limitCount) {
           throw new RuntimeException("调用频率超限，当前限制: " + limitCount + "/秒");
         }
         counter[0]++;
+      }
+      // 清理过期计数器（保留当前秒和前1秒，删除更旧的）
+      if (nowSec % 10 == 0) {  // 每10秒清理一次
+        rateLimitCounters.keySet().removeIf(k -> {
+          try {
+            long ts = Long.parseLong(k.substring(k.lastIndexOf('_') + 1));
+            return ts < nowSec - 2;
+          } catch (Exception e) { return true; }
+        });
       }
     }
 

@@ -49,7 +49,11 @@ public class ExternalApiFeignController {
         vo.setRequestHeaders(version.getRequestHeaders());
         vo.setRequestBody(version.getRequestBody());
         vo.setContentType(version.getContentType());
+        vo.setQueryParams(version.getQueryParams());
+        vo.setAuthType(version.getAuthType());
+        vo.setAuthConfig(version.getAuthConfig());
         vo.setTimeout(version.getTimeout());
+        vo.setRetryCount(version.getRetryCount());
         return Result.success(vo);
     }
 
@@ -81,7 +85,11 @@ public class ExternalApiFeignController {
         vo.setRequestHeaders(version.getRequestHeaders());
         vo.setRequestBody(version.getRequestBody());
         vo.setContentType(version.getContentType());
+        vo.setQueryParams(version.getQueryParams());
+        vo.setAuthType(version.getAuthType());
+        vo.setAuthConfig(version.getAuthConfig());
         vo.setTimeout(version.getTimeout());
+        vo.setRetryCount(version.getRetryCount());
         return Result.success(vo);
     }
 }

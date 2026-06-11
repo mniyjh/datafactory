@@ -3,6 +3,7 @@ package com.cqie.datafactory.executor.schedule;
 import com.cqie.datafactory.executor.schedule.entity.ScheduleJob;
 import com.cqie.datafactory.executor.schedule.entity.ScheduleJobTask;
 import com.cqie.datafactory.executor.schedule.event.JobFailureEvent;
+import com.cqie.datafactory.executor.schedule.event.JobSuccessEvent;
 import com.cqie.datafactory.executor.schedule.guard.ExecutionGuard;
 import com.cqie.datafactory.executor.schedule.util.CronHelper;
 import com.cqie.datafactory.executor.service.ExecutorTaskService;
@@ -202,6 +203,8 @@ public class TaskScheduleExecutor {
                     }
                     doFireTask(job, link, attempt);
                     job.setCurrentRetry(0);
+                    eventPublisher.publishEvent(new JobSuccessEvent(
+                            job.getId(), job.getEnvironment(), LocalDateTime.now()));
                     return;
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();

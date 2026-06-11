@@ -9,7 +9,11 @@ public class ApiVersionResolveVO {
     private String requestHeaders;
     private String requestBody;
     private String contentType;
+    private String queryParams;
+    private String authType;
+    private String authConfig;
     private Integer timeout;
+    private Integer retryCount;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -27,6 +31,14 @@ public class ApiVersionResolveVO {
     public void setRequestBody(String requestBody) { this.requestBody = requestBody; }
     public String getContentType() { return contentType; }
     public void setContentType(String contentType) { this.contentType = contentType; }
+    public String getQueryParams() { return queryParams; }
+    public void setQueryParams(String queryParams) { this.queryParams = queryParams; }
+    public String getAuthType() { return authType; }
+    public void setAuthType(String authType) { this.authType = authType; }
+    public String getAuthConfig() { return authConfig; }
+    public void setAuthConfig(String authConfig) { this.authConfig = authConfig; }
     public Integer getTimeout() { return timeout; }
     public void setTimeout(Integer timeout) { this.timeout = timeout; }
+    public Integer getRetryCount() { return retryCount; }
+    public void setRetryCount(Integer retryCount) { this.retryCount = retryCount; }
 }
