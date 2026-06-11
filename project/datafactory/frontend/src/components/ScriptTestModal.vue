@@ -85,7 +85,8 @@ const scriptTypeLabel = computed(() => {
   const t = (props.versionData?.type || '').toUpperCase();
   if (t === 'SQL') return 'SQL';
   if (t === 'SHELL') return 'Shell';
-  return 'Python';
+  if (t === 'PYTHON') return 'Python';
+  return t || '脚本';
 });
 
 const formatInput = () => {

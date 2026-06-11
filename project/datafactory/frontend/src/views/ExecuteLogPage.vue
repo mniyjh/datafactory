@@ -133,7 +133,7 @@
               <div class="node-display-name">{{ node.nodeName }}</div>
               <div class="node-display-id">{{ node.nodeId }}</div>
             </div>
-            <div v-if="index < nodeLogs.length - 1" class="flow-arrow">↓</div>
+            <div v-if="index < flowNodes.length - 1" class="flow-arrow">↓</div>
           </div>
         </div>
         <!-- 右侧节点详情 -->
