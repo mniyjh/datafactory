@@ -108,10 +108,10 @@ cd frontend && npm install && npm run dev
 
 ```bash
 # 备份
-backup.bat
+scripts/backup.bat
 
 # 恢复
-restore.bat backup\datafactory_20260611_120000.sql
+scripts/restore.bat scripts/backup\datafactory_20260611_120000.sql
 ```
 
 ---
@@ -156,6 +156,6 @@ datafactory/
 ├── docs/                              设计文档
 ├── datafactory.sql                    数据库初始化脚本
 ├── docker-compose.yml                 基础设施编排
-├── backup.bat / restore.bat           备份恢复脚本
-└── setup-env.bat                      环境变量配置
+├── scripts/                            一键脚本（备份/恢复/环境配置）
+├── docker-compose.yml                 基础设施编排
 ```
