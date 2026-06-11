@@ -26,6 +26,9 @@ export const dashboardApi = {
   getStats() {
     return api.get('/dashboard/stats');
   },
+  getMetrics() {
+    return axios.get('/executor/metrics/dashboard', { timeout: 5000 });
+  },
   getOverview() {
     return api.get('/statistics/overview');
   },
