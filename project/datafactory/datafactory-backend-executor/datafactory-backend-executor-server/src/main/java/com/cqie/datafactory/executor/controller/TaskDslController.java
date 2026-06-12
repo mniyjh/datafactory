@@ -7,6 +7,7 @@ import com.cqie.datafactory.executor.service.dto.TaskDslCreateDTO;
 import com.cqie.datafactory.executor.service.dto.TaskDslPromoteDTO;
 import com.cqie.datafactory.executor.service.vo.TaskDslVO;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -37,68 +38,80 @@ public class TaskDslController {
     }
 
     @PostMapping("/version")
+    @PreAuthorize("hasAuthority('task:write')")
     public Result<Long> createVersion(@Valid @RequestBody TaskDslCreateDTO dto) {
         return Result.success(taskDslService.createVersion(dto));
     }
 
     @PutMapping("/version/{versionId}")
+    @PreAuthorize("hasAuthority('task:write')")
     public Result<Void> updateVersion(@PathVariable("versionId") Long versionId, @RequestBody TaskDslCreateDTO dto) {
         taskDslService.updateVersion(versionId, dto);
         return Result.success();
     }
 
     @PostMapping("/version/{versionId}/publish")
+    @PreAuthorize("hasAuthority('task:write')")
     public Result<Void> publish(@PathVariable("versionId") Long versionId) {
         taskDslService.publish(versionId);
         return Result.success();
     }
 
     @DeleteMapping("/version/{versionId}")
+    @PreAuthorize("hasAuthority('task:write')")
     public Result<Void> delete(@PathVariable("versionId") Long versionId) {
         taskDslService.delete(versionId);
         return Result.success();
     }
 
     @PostMapping("/version/{versionId}/current")
+    @PreAuthorize("hasAuthority('task:write')")
     public Result<Void> setCurrent(@PathVariable("versionId") Long versionId) {
         taskDslService.setCurrent(versionId);
         return Result.success();
     }
 
     @PostMapping("/{taskId}/promote")
+    @PreAuthorize("hasAuthority('task:write')")
     public Result<Void> promote(@PathVariable("taskId") Long taskId, @Valid @RequestBody TaskDslPromoteDTO dto) {
         taskDslService.promote(taskId, dto);
         return Result.success();
     }
 
     @PostMapping("/{taskId}/rollback-env")
+    @PreAuthorize("hasAuthority('task:write')")
     public Result<Void> rollbackEnv(@PathVariable("taskId") Long taskId, @Valid @RequestBody TaskDslPromoteDTO dto) {
         taskDslService.promote(taskId, dto);
         return Result.success();
     }
 
     @PostMapping("/version/{id}/rollback")
+    @PreAuthorize("hasAuthority('task:write')")
     public Result<Void> rollbackVersion(@PathVariable("id") Long versionId) {
         taskDslService.rollbackToPrev(versionId);
         return Result.success();
     }
 
     @GetMapping("/{taskId}/versions")
+    @PreAuthorize("hasAuthority('task:read')")
     public Result<List<TaskDslVO>> versions(@PathVariable("taskId") Long taskId, @RequestParam(value = "environment", required = false) String environment) {
         return Result.success(taskDslService.listByTaskAndEnv(taskId, environment));
     }
 
     @GetMapping("/{taskId}/current")
+    @PreAuthorize("hasAuthority('task:read')")
     public Result<TaskDslVO> current(@PathVariable("taskId") Long taskId, @RequestParam("environment") String environment) {
         return Result.success(taskDslService.current(taskId, environment));
     }
 
     @GetMapping("/{taskId}/outdatedNodes")
+    @PreAuthorize("hasAuthority('task:read')")
     public Result<String> outdatedNodes(@PathVariable("taskId") Long taskId, @RequestParam("environment") String environment) {
         return Result.success(taskDslService.outdatedNodes(taskId, environment));
     }
 
     @GetMapping("/{taskId}/page")
+    @PreAuthorize("hasAuthority('task:read')")
     public Result<PageResult<TaskDslVO>> page(@PathVariable("taskId") Long taskId,
                                               @RequestParam(value = "environment", required = false) String environment,
                                               @RequestParam(value = "current", defaultValue = "1") Long current,
@@ -107,12 +120,14 @@ public class TaskDslController {
     }
 
     @PostMapping("/{taskDslId}/sync-nodes")
+    @PreAuthorize("hasAuthority('task:write')")
     public Result<Void> syncNodes(@PathVariable("taskDslId") Long taskDslId) {
         taskDslService.setCurrent(taskDslId);
         return Result.success();
     }
 
     @GetMapping("/{taskDslId}/all-io-params")
+    @PreAuthorize("hasAuthority('task:read')")
     public Result<List<Map<String, Object>>> allIoParams(@PathVariable("taskDslId") Long taskDslId) {
         // 1. 查该版本下所有节点实例
         List<NodeInstance> instances = nodeInstanceMapper.selectList(

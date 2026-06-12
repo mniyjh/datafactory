@@ -10,6 +10,7 @@ import com.cqie.datafactory.configuration.entity.DatasourceDb;
 import com.cqie.datafactory.configuration.service.DatasourceDbService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -25,12 +26,14 @@ public class DatasourceDbController {
     private DatasourceDbService dbService;
 
     @PostMapping("/test")
+    @PreAuthorize("hasAuthority('datasource:write')")
     public Result<Void> testConnection(@RequestBody DatasourceDbTestDTO dto) {
         dbService.testConnection(dto);
         return Result.success();
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('datasource:read')")
     public Result<PageResult<DatasourceDbVO>> pageDb(
             @RequestParam(value = "current", defaultValue = "1") Long current,
             @RequestParam(value = "size", defaultValue = "10") Long size,
@@ -42,24 +45,28 @@ public class DatasourceDbController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('datasource:write')")
     public Result<Void> createDb(@RequestBody DatasourceDbCreateDTO dto) {
         dbService.createDb(dto);
         return Result.success();
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('datasource:write')")
     public Result<Void> updateDb(@PathVariable("id") Long id, @RequestBody DatasourceDbCreateDTO dto) {
         dbService.updateDb(id, dto);
         return Result.success();
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('datasource:write')")
     public Result<Void> deleteDb(@PathVariable("id") Long id) {
         dbService.deleteDb(id);
         return Result.success();
     }
 
     @GetMapping("/simple")
+    @PreAuthorize("hasAuthority('datasource:read')")
     public Result<List<Map<String, Object>>> simpleList() {
         List<DatasourceDb> list = dbService.list(
             new LambdaQueryWrapper<DatasourceDb>()

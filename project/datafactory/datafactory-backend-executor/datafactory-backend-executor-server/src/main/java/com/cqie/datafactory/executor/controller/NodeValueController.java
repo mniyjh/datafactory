@@ -8,6 +8,7 @@ import com.cqie.datafactory.executor.entity.NodeIoParamValue;
 import com.cqie.datafactory.executor.mapper.NodeInstanceMapper;
 import com.cqie.datafactory.executor.service.NodeFieldValueService;
 import com.cqie.datafactory.executor.service.NodeIoParamValueService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -36,6 +37,7 @@ public class NodeValueController {
     }
 
     @GetMapping("/{taskId}/node/{nodeId}/fields")
+    @PreAuthorize("hasAuthority('task:read')")
     public Result<List<NodeFieldValue>> fields(@PathVariable("taskId") Long taskId,
                                                @PathVariable("nodeId") String nodeId) {
         NodeInstance instance = nodeInstanceMapper.selectOne(new LambdaQueryWrapper<NodeInstance>()
@@ -51,6 +53,7 @@ public class NodeValueController {
     }
 
     @PutMapping("/{taskId}/node/{nodeId}/fields")
+    @PreAuthorize("hasAuthority('task:write')")
     public Result<Void> saveFields(@PathVariable("taskId") Long taskId,
                                    @PathVariable("nodeId") String nodeId,
                                    @RequestParam(value = "componentId", required = false) Long componentId,
@@ -89,6 +92,7 @@ public class NodeValueController {
     }
 
     @GetMapping("/{taskId}/node/{nodeId}/io-params")
+    @PreAuthorize("hasAuthority('task:read')")
     public Result<List<NodeIoParamValue>> ioParams(@PathVariable("taskId") Long taskId,
                                                    @PathVariable("nodeId") String nodeId) {
         NodeInstance instance = nodeInstanceMapper.selectOne(new LambdaQueryWrapper<NodeInstance>()
@@ -104,6 +108,7 @@ public class NodeValueController {
     }
 
     @PutMapping("/{taskId}/node/{nodeId}/io-params")
+    @PreAuthorize("hasAuthority('task:write')")
     public Result<Void> saveIoParams(@PathVariable("taskId") Long taskId,
                                      @PathVariable("nodeId") String nodeId,
                                      @RequestParam(value = "componentId", required = false) Long componentId,

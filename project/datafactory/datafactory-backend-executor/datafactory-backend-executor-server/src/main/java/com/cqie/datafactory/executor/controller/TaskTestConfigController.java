@@ -5,6 +5,7 @@ import com.cqie.datafactory.executor.entity.TaskTestConfig;
 import com.cqie.datafactory.executor.service.TaskTestConfigService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,6 +23,7 @@ public class TaskTestConfigController {
 
     @Operation(summary = "获取任务的测试配置（按版本隔离）")
     @GetMapping("/list/{taskId}")
+    @PreAuthorize("hasAuthority('task:read')")
     public Result<List<TaskTestConfig>> list(@PathVariable("taskId") Long taskId,
                                              @RequestParam(value = "versionId", required = false) Long versionId) {
         return Result.success(taskTestConfigService.listByTaskIdAndVersion(taskId, versionId));
@@ -29,12 +31,14 @@ public class TaskTestConfigController {
 
     @Operation(summary = "保存测试配置")
     @PostMapping
+    @PreAuthorize("hasAuthority('task:write')")
     public Result<TaskTestConfig> save(@RequestBody TaskTestConfig config) {
         return Result.success(taskTestConfigService.saveConfig(config));
     }
 
     @Operation(summary = "删除测试配置")
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('task:write')")
     public Result<Void> delete(@PathVariable("id") Long id) {
         taskTestConfigService.deleteConfig(id);
         return Result.success();

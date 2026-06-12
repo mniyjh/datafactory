@@ -3,6 +3,7 @@ package com.cqie.datafactory.configuration.controller;
 import com.cqie.datafactory.common.result.Result;
 import com.cqie.datafactory.configuration.controller.dto.FieldOptionsResolveDTO;
 import com.cqie.datafactory.configuration.service.FieldOptionsService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,6 +20,7 @@ public class FieldOptionsController {
     }
 
     @PostMapping("/field/options/resolve")
+    @PreAuthorize("hasAuthority('task:read')")
     public Result<List<Map<String, Object>>> resolveOptions(@RequestBody FieldOptionsResolveDTO dto) {
         return Result.success(fieldOptionsService.resolve(dto));
     }

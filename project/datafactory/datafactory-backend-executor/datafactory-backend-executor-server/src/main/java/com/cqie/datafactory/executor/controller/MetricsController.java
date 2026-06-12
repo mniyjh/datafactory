@@ -1,6 +1,7 @@
 package com.cqie.datafactory.executor.controller;
 
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -20,6 +21,7 @@ public class MetricsController {
     }
 
     @GetMapping("/dashboard")
+    @PreAuthorize("hasAuthority('monitor:read')")
     public Map<String, Object> dashboard() {
         Map<String, Object> result = new LinkedHashMap<>();
 

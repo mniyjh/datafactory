@@ -9,6 +9,7 @@ import com.cqie.datafactory.configuration.entity.ExternalApi;
 import com.cqie.datafactory.configuration.service.ExternalApiService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -24,6 +25,7 @@ public class ExternalApiController {
     private ExternalApiService apiService;
 
     @GetMapping
+    @PreAuthorize("hasAuthority('datasource:read')")
     public Result<PageResult<ExternalApiVO>> pageApi(
             @RequestParam(value = "current", defaultValue = "1") Long current,
             @RequestParam(value = "size", defaultValue = "10") Long size,
@@ -35,30 +37,35 @@ public class ExternalApiController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('datasource:write')")
     public Result<Void> createApi(@RequestBody ExternalApiCreateDTO dto) {
         apiService.createApi(dto);
         return Result.success();
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('datasource:write')")
     public Result<Void> updateApi(@PathVariable("id") Long id, @RequestBody ExternalApiCreateDTO dto) {
         apiService.updateApi(id, dto);
         return Result.success();
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('datasource:write')")
     public Result<Void> deleteApi(@PathVariable("id") Long id) {
         apiService.deleteApi(id);
         return Result.success();
     }
 
     @PutMapping("/{id}/status")
+    @PreAuthorize("hasAuthority('datasource:write')")
     public Result<Void> toggleStatus(@PathVariable("id") Long id) {
         apiService.toggleStatus(id);
         return Result.success();
     }
 
     @GetMapping("/simple")
+    @PreAuthorize("hasAuthority('datasource:read')")
     public Result<List<Map<String, Object>>> simpleList() {
         List<ExternalApi> list = apiService.list(
             new LambdaQueryWrapper<ExternalApi>()
