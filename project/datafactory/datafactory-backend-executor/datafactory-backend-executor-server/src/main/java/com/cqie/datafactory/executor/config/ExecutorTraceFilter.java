@@ -12,7 +12,7 @@ import java.util.UUID;
 /** 为每个 HTTP 请求生成 traceId，注入 MDC 和响应头，实现全链路追踪 */
 @Component
 @Order(0)
-public class TraceFilter implements Filter {
+public class ExecutorTraceFilter implements Filter {
     private static final String TRACE_ID = "traceId";
 
     @Override
