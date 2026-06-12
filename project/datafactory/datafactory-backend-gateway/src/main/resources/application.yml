@@ -17,14 +17,6 @@ spring:
           uri: lb://datafactory-backend-configuration
           predicates:
             - Path=/auth/**
-        - id: user-service
-          uri: lb://datafactory-backend-configuration
-          predicates:
-            - Path=/users/**, /users
-        - id: config-item-service
-          uri: lb://datafactory-backend-configuration
-          predicates:
-            - Path=/config-items/**, /config-items
         - id: datasource-db-service
           uri: lb://datafactory-backend-configuration
           predicates:
@@ -57,10 +49,6 @@ spring:
           uri: lb://datafactory-backend-configuration
           predicates:
             - Path=/component/**, /component
-        - id: component-category-service
-          uri: lb://datafactory-backend-configuration
-          predicates:
-            - Path=/component-category/**, /component-category
         - id: config-health-service
           uri: lb://datafactory-backend-configuration
           predicates:
@@ -92,10 +80,14 @@ spring:
       globalcors:
         cors-configurations:
           '[/**]':
-            allowedOrigins: "*"
-            allowedMethods: "*"
-            allowedHeaders: "*"
-            allowCredentials: false
+            allowedOrigins: "${CORS_ORIGINS:http://localhost:5173}"
+            allowedMethods: "GET,POST,PUT,DELETE,OPTIONS"
+            allowedHeaders: "Authorization,Content-Type,X-Trace-Id"
+            allowCredentials: true
+            maxAge: 3600
+
+jwt:
+  secret: ${JWT_SECRET}
 
 management:
   endpoints:

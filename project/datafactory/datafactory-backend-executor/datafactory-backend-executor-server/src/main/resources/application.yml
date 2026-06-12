@@ -80,3 +80,6 @@ datafactory:
 security:
   datasource:
     secret-key: ${DATASOURCE_ENCRYPT_KEY:RGF0YUZhY3RvcnlERU1PS2V5MjAyNiEhMTIzNDU2Nzg=}
+
+jwt:
+  secret: ${JWT_SECRET}
