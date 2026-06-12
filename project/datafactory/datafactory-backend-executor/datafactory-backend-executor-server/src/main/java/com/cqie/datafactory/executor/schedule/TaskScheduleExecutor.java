@@ -93,6 +93,19 @@ public class TaskScheduleExecutor {
         List<ScheduleJob> jobs = scheduleJobService.listEnabledJobs();
         LocalDateTime now = LocalDateTime.now();
 
+        // 批量预加载所有 job 的关联任务，避免 N+1 查询
+        List<Long> enabledJobIds = new ArrayList<>();
+        for (ScheduleJob j : jobs) {
+            enabledJobIds.add(j.getId());
+        }
+        Map<Long, List<ScheduleJobTask>> tasksMap = scheduleJobService.loadJobTasksBatch(enabledJobIds);
+        for (ScheduleJob j : jobs) {
+            List<ScheduleJobTask> tasks = tasksMap.get(j.getId());
+            if (tasks != null) {
+                j.setJobTasks(tasks);
+            }
+        }
+
         for (ScheduleJob job : jobs) {
             // 高频任务由 HighFrequencyScheduler 管理
             if (CronHelper.isHighFrequency(job.getCronExpression())) {

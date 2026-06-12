@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -298,6 +299,7 @@ public class ScheduleJobService extends ServiceImpl<ScheduleJobMapper, ScheduleJ
      */
     public void loadJobTasks(ScheduleJob job) {
         if (job == null || job.getId() == null) return;
+        if (job.getJobTasks() != null) return; // already loaded from batch
         List<ScheduleJobTask> tasks = scheduleJobTaskMapper.selectList(
                 new LambdaQueryWrapper<ScheduleJobTask>()
                         .eq(ScheduleJobTask::getScheduleJobId, job.getId())
@@ -306,13 +308,18 @@ public class ScheduleJobService extends ServiceImpl<ScheduleJobMapper, ScheduleJ
     }
 
     /**
-     * 批量加载多个 job 的关联任务列表。
+     * 批量加载多个 job 的关联任务列表（单次查询）。
      */
-    public void loadJobTasksBatch(List<ScheduleJob> jobs) {
-        if (jobs == null || jobs.isEmpty()) return;
-        for (ScheduleJob job : jobs) {
-            loadJobTasks(job);
+    public Map<Long, List<ScheduleJobTask>> loadJobTasksBatch(List<Long> scheduleJobIds) {
+        if (scheduleJobIds == null || scheduleJobIds.isEmpty()) {
+            return Collections.emptyMap();
         }
+        List<ScheduleJobTask> allTasks = scheduleJobTaskMapper.selectList(
+                new LambdaQueryWrapper<ScheduleJobTask>()
+                        .in(ScheduleJobTask::getScheduleJobId, scheduleJobIds)
+                        .orderByAsc(ScheduleJobTask::getSortOrder));
+        return allTasks.stream()
+                .collect(Collectors.groupingBy(ScheduleJobTask::getScheduleJobId));
     }
 
     /**

@@ -1,17 +1,18 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import MainLayout from '../layouts/MainLayout.vue';
-import DashboardPage from '../views/DashboardPage.vue';
-import DatabasePage from '../views/DatabasePage.vue';
-import ApiConfigPage from '../views/ApiConfigPage.vue';
-import ScriptPage from '../views/ScriptPage.vue';
-import TaskPage from '../views/TaskPage.vue';
-import OpenApiPage from '../views/OpenApiPage.vue';
-import ExecuteLogPage from '../views/ExecuteLogPage.vue';
-import ComponentPage from '../views/ComponentPage.vue';
-import SchedulePage from '../views/SchedulePage.vue';
-import LoginPage from '../views/LoginPage.vue';
-import UserPage from '../views/UserPage.vue';
 import { authStore } from '../store/auth';
+
+const DashboardPage = () => import('../views/DashboardPage.vue');
+const DatabasePage = () => import('../views/DatabasePage.vue');
+const ApiConfigPage = () => import('../views/ApiConfigPage.vue');
+const ScriptPage = () => import('../views/ScriptPage.vue');
+const TaskPage = () => import('../views/TaskPage.vue');
+const OpenApiPage = () => import('../views/OpenApiPage.vue');
+const ExecuteLogPage = () => import('../views/ExecuteLogPage.vue');
+const ComponentPage = () => import('../views/ComponentPage.vue');
+const SchedulePage = () => import('../views/SchedulePage.vue');
+const LoginPage = () => import('../views/LoginPage.vue');
+const UserPage = () => import('../views/UserPage.vue');
 
 const router = createRouter({
   history: createWebHashHistory(),

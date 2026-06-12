@@ -13,5 +13,16 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api/, '')
       }
     }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-vue': ['vue', 'vue-router'],
+          'vendor-ui': ['ant-design-vue', '@ant-design/icons-vue'],
+          'vendor-utils': ['axios', 'dayjs'],
+        }
+      }
+    }
   }
 });

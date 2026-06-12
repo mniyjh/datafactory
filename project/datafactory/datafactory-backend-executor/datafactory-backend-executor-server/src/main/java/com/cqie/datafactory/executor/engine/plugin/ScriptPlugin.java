@@ -11,8 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -24,10 +23,12 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Component
 public class ScriptPlugin implements ComponentPlugin {
 
-    private static final Logger log = LoggerFactory.getLogger(ScriptPlugin.class);
+    private static final long MAX_OUTPUT_BYTES = 50 * 1024 * 1024; // 50MB
+
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final JdbcTemplate jdbcTemplate;
     private final ScriptFeignClient scriptFeignClient;
@@ -208,8 +209,17 @@ public class ScriptPlugin implements ComponentPlugin {
                                 try (BufferedReader br = new BufferedReader(new InputStreamReader(
                                         process.getInputStream(), StandardCharsets.UTF_8))) {
                                     StringBuilder sb = new StringBuilder();
+                                    long totalBytes = 0;
                                     String line;
                                     while ((line = br.readLine()) != null) {
+                                        long lineBytes = line.length() * 2L; // approximate UTF-16
+                                        totalBytes += lineBytes;
+                                        if (totalBytes > MAX_OUTPUT_BYTES) {
+                                            log.warn("Script output exceeded {}MB limit, truncating", MAX_OUTPUT_BYTES / 1024 / 1024);
+                                            sb.append("\n... [OUTPUT TRUNCATED: exceeded 50MB limit] ...");
+                                            process.destroyForcibly();
+                                            break;
+                                        }
                                         if (!sb.isEmpty()) sb.append("\n");
                                         sb.append(line);
                                     }

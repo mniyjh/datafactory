@@ -12,11 +12,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import lombok.extern.slf4j.Slf4j;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Component
@@ -26,6 +28,7 @@ public class DbPlugin implements ComponentPlugin {
     private final DatasourceFeignClient datasourceFeignClient;
     private final ScriptFeignClient scriptFeignClient;
     private final CircuitBreakerRegistry cbRegistry;
+    private final ConcurrentHashMap<String, HikariDataSource> poolCache = new ConcurrentHashMap<>();
 
     public DbPlugin(JdbcTemplate jdbcTemplate, DatasourceFeignClient datasourceFeignClient,
                     ScriptFeignClient scriptFeignClient, CircuitBreakerRegistry cbRegistry) {
@@ -160,11 +163,25 @@ public class DbPlugin implements ComponentPlugin {
         }
         DbVersionResolveVO vo = result.getData();
 
-        DriverManagerDataSource ds = new DriverManagerDataSource();
-        ds.setUrl(vo.getJdbcUrl());
-        ds.setUsername(vo.getUsername());
-        ds.setPassword(vo.getPassword());
+        HikariDataSource ds = getOrCreatePool(dbCode, environment, vo.getJdbcUrl(), vo.getUsername(), vo.getPassword());
         return new JdbcTemplate(ds);
+    }
+
+    private HikariDataSource getOrCreatePool(String dbCode, String environment, String jdbcUrl,
+                                              String username, String password) {
+        String key = dbCode + ":" + environment;
+        return poolCache.computeIfAbsent(key, k -> {
+            HikariConfig config = new HikariConfig();
+            config.setJdbcUrl(jdbcUrl);
+            config.setUsername(username);
+            config.setPassword(password);
+            config.setMaximumPoolSize(3);
+            config.setMinimumIdle(1);
+            config.setConnectionTimeout(5000);
+            config.setIdleTimeout(300000);
+            config.setMaxLifetime(600000);
+            return new HikariDataSource(config);
+        });
     }
 
     private String readFieldValue(JsonNode fieldValues, String... keys) {

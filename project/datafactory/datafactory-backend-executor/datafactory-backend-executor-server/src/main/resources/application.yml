@@ -45,11 +45,11 @@ spring:
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
 
 logging:
   level:
-    com.cqie.datafactory.executor.mapper: debug
+    com.cqie.datafactory.executor.mapper: warn
   pattern:
     console: '{"time":"%d{yyyy-MM-dd HH:mm:ss.SSS}","level":"%-5level","logger":"%logger{36}","traceId":"%X{traceId}","msg":"%msg"}%n'
 
