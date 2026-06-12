@@ -20,7 +20,7 @@ class ExecEngineRetryTest {
     @BeforeEach
     void setUp() {
         pluginRegistry = new PluginRegistry(List.of(new FlakyDbPlugin()));
-        execEngine = new ExecEngine(pluginRegistry, null);
+        execEngine = new ExecEngine(pluginRegistry, null, null, null, null);
     }
 
     @Test
@@ -77,7 +77,7 @@ class ExecEngineRetryTest {
     @Test
     void shouldSkipInactiveBranchNodes() {
         pluginRegistry = new PluginRegistry(List.of(new FlakyDbPlugin(), new TestBranchPlugin()));
-        execEngine = new ExecEngine(pluginRegistry, null);
+        execEngine = new ExecEngine(pluginRegistry, null, null, null, null);
 
         String dsl = """
         {

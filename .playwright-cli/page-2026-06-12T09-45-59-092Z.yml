@@ -1,0 +1,18 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - heading "数据工厂" [level=1] [ref=e6]
+    - paragraph [ref=e7]: DataFactory 数据开发平台
+  - generic [ref=e8]:
+    - generic [ref=e14]:
+      - img "user" [ref=e16]:
+        - img [ref=e17]
+      - textbox "用户名" [ref=e19]: admin
+    - generic [ref=e25]:
+      - img "lock" [ref=e27]:
+        - img [ref=e28]
+      - textbox "密码" [ref=e30]: admin123
+      - img "eye-invisible" [ref=e32] [cursor=pointer]:
+        - img [ref=e33]
+    - button "登 录" [active] [ref=e41] [cursor=pointer]:
+      - generic [ref=e42]: 登 录
+  - generic [ref=e44]: Request failed with status code 500

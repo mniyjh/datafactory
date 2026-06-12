@@ -1,0 +1,103 @@
+- generic [ref=e45]:
+  - complementary [ref=e46]:
+    - generic [ref=e47]:
+      - img "build" [ref=e48]:
+        - img [ref=e49]
+      - generic [ref=e51]: 数据工厂
+    - navigation [ref=e52]:
+      - menu [ref=e53]:
+        - menuitem "home 首页" [ref=e54] [cursor=pointer]:
+          - img "home" [ref=e55]:
+            - img [ref=e56]
+          - generic [ref=e58]: 首页
+        - generic [ref=e59] [cursor=pointer]:
+          - img "database" [ref=e60]:
+            - img [ref=e61]
+          - generic [ref=e63]: 数据源管理
+        - list [ref=e64]:
+          - menuitem "数据库管理" [ref=e65] [cursor=pointer]:
+            - generic [ref=e66]: 数据库管理
+          - menuitem "三方API管理" [ref=e67] [cursor=pointer]:
+            - generic [ref=e68]: 三方API管理
+        - menuitem "code 脚本管理" [ref=e69] [cursor=pointer]:
+          - img "code" [ref=e70]:
+            - img [ref=e71]
+          - generic [ref=e73]: 脚本管理
+        - menuitem "profile 任务管理" [ref=e74] [cursor=pointer]:
+          - img "profile" [ref=e75]:
+            - img [ref=e76]
+          - generic [ref=e78]: 任务管理
+        - menuitem "link 开放接口" [ref=e79] [cursor=pointer]:
+          - img "link" [ref=e80]:
+            - img [ref=e81]
+          - generic [ref=e83]: 开放接口
+        - menuitem "appstore 组件管理" [ref=e84] [cursor=pointer]:
+          - img "appstore" [ref=e85]:
+            - img [ref=e86]
+          - generic [ref=e88]: 组件管理
+        - menuitem "team 用户管理" [ref=e89] [cursor=pointer]:
+          - img "team" [ref=e90]:
+            - img [ref=e91]
+          - generic [ref=e93]: 用户管理
+        - menuitem "clock-circle 定时任务" [ref=e94] [cursor=pointer]:
+          - img "clock-circle" [ref=e95]:
+            - img [ref=e96]
+          - generic [ref=e99]: 定时任务
+        - menuitem "file-text 执行日志" [ref=e100] [cursor=pointer]:
+          - img "file-text" [ref=e101]:
+            - img [ref=e102]
+          - generic [ref=e104]: 执行日志
+    - generic [ref=e105] [cursor=pointer]: ◀
+  - generic [ref=e106]:
+    - banner [ref=e107]:
+      - img "menu-fold" [ref=e109] [cursor=pointer]:
+        - img [ref=e110]
+      - text: 首页
+      - generic [ref=e113] [cursor=pointer]:
+        - img "user" [ref=e117]:
+          - img [ref=e118]
+        - generic [ref=e120]: 管理员
+    - generic [ref=e123]:
+      - generic [ref=e124]:
+        - generic [ref=e125]:
+          - generic [ref=e126]: 数据源总数
+          - generic [ref=e127]: "0"
+        - generic [ref=e128]:
+          - generic [ref=e129]: API总数
+          - generic [ref=e130]: "0"
+        - generic [ref=e131]:
+          - generic [ref=e132]: 脚本总数
+          - generic [ref=e133]: "0"
+        - generic [ref=e134]:
+          - generic [ref=e135]: 任务总数
+          - generic [ref=e136]: "0"
+      - generic [ref=e137]:
+        - generic [ref=e138]:
+          - generic [ref=e139]: 最近执行
+          - table [ref=e147]:
+            - rowgroup [ref=e153]:
+              - row "任务名称 环境 状态 执行时间" [ref=e154]:
+                - columnheader "任务名称" [ref=e155]
+                - columnheader "环境" [ref=e156]
+                - columnheader "状态" [ref=e157]
+                - columnheader "执行时间" [ref=e158]
+            - rowgroup [ref=e159]:
+              - row "No data" [ref=e160]:
+                - cell "No data" [ref=e161]:
+                  - generic [ref=e162]:
+                    - img [ref=e164]
+                    - paragraph [ref=e170]: No data
+        - generic [ref=e171]:
+          - generic [ref=e172]: 执行成功率
+          - generic [ref=e173]:
+            - progressbar [ref=e174]:
+              - generic [ref=e175]:
+                - img [ref=e176]
+                - generic "0.00%" [ref=e180]
+            - generic [ref=e181]: 总体执行成功率
+            - generic [ref=e182]:
+              - generic [ref=e183]: "成功: 0"
+              - generic [ref=e184]: "失败: 0"
+  - generic "双击展开/收起，拖拽可移动" [ref=e185]:
+    - img "rocket" [ref=e187]:
+      - img [ref=e188]

@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# playwright-cli snapshot files (regenerated per session)
+.playwright-cli/
+
+# playwright-cli browser config — environment-specific (host resolver rules, cert bypass, etc.)
+# Create your own: see skill/CONFIG.md
+.playwright/
+
+# Playwright skill runtime data — never commit (session tokens, cache, screenshots)
+.playwright-skill/auth/
+.playwright-skill/cache/
+.playwright-skill/sessions/
+
+# Project-specific config (when testing locally)
+.claude/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Data files (project-specific, not part of the skill)
+*.csv
+*.xls
+*.xlsx
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# Environment
+.env
+.env.local
+
+# Secrets (passwords, API keys) - never commit
+skill/.secrets.json
+.secrets.json
+**/secrets.json
+
+# Project-specific configuration (created on init) - never commit
+skill/worktrees.json
+worktrees.json

@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "skills": {
+    "openspec-apply-change": {
+      "source": "jixoai/skill-creator",
+      "sourceType": "github",
+      "skillPath": ".codex/skills/openspec-apply-change/SKILL.md",
+      "computedHash": "807a054a0cc467701b8870b1d035bb720f393f45cda5eb1f532ee52d11e4c105"
+    },
+    "openspec-archive-change": {
+      "source": "jixoai/skill-creator",
+      "sourceType": "github",
+      "skillPath": ".codex/skills/openspec-archive-change/SKILL.md",
+      "computedHash": "9abbfa32578dbed1d36fff46f3fee9b93f3dde79210e37eb8aaf39f07f806513"
+    },
+    "openspec-bulk-archive-change": {
+      "source": "jixoai/skill-creator",
+      "sourceType": "github",
+      "skillPath": ".codex/skills/openspec-bulk-archive-change/SKILL.md",
+      "computedHash": "551a2890af9d4b400ff52f5c830b93834b5b8cb40a508666a74f48c6a7bb9b88"
+    },
+    "openspec-continue-change": {
+      "source": "jixoai/skill-creator",
+      "sourceType": "github",
+      "skillPath": ".codex/skills/openspec-continue-change/SKILL.md",
+      "computedHash": "80211944f3b3ecd6e3b9758120915a7d97470a5452be95e89e0717b3bd3cf926"
+    },
+    "openspec-explore": {
+      "source": "jixoai/skill-creator",
+      "sourceType": "github",
+      "skillPath": ".codex/skills/openspec-explore/SKILL.md",
+      "computedHash": "6e2ed9a45714302affb4c5301c98a708efad2ecc05f3aa12f2c226b718c395f9"
+    },
+    "openspec-ff-change": {
+      "source": "jixoai/skill-creator",
+      "sourceType": "github",
+      "skillPath": ".codex/skills/openspec-ff-change/SKILL.md",
+      "computedHash": "4a2e55336cd1f4333c38e954bb328e88cb276f20f1c7d9508324e32efd387e5c"
+    },
+    "openspec-new-change": {
+      "source": "jixoai/skill-creator",
+      "sourceType": "github",
+      "skillPath": ".codex/skills/openspec-new-change/SKILL.md",
+      "computedHash": "e76a876c41750b6e0278c3ea065879db633c36261e21481d8b100dacb1450ea1"
+    },
+    "openspec-onboard": {
+      "source": "jixoai/skill-creator",
+      "sourceType": "github",
+      "skillPath": ".codex/skills/openspec-onboard/SKILL.md",
+      "computedHash": "dd63c4f6db12291a6eb0728c671e6a568dc20509f155b3837350d0718b8fe9b3"
+    },
+    "openspec-propose": {
+      "source": "jixoai/skill-creator",
+      "sourceType": "github",
+      "skillPath": ".codex/skills/openspec-propose/SKILL.md",
+      "computedHash": "72b3b38f3d0a40e0fb74ef1c08623a73e55d6e05f2ecce12db5716db37c45839"
+    },
+    "openspec-sync-specs": {
+      "source": "jixoai/skill-creator",
+      "sourceType": "github",
+      "skillPath": ".codex/skills/openspec-sync-specs/SKILL.md",
+      "computedHash": "bd554aa4311cfce52dc8b75db6ead4e580dd14f2301b844eb4d96af4fbbbe073"
+    },
+    "openspec-verify-change": {
+      "source": "jixoai/skill-creator",
+      "sourceType": "github",
+      "skillPath": ".codex/skills/openspec-verify-change/SKILL.md",
+      "computedHash": "3c050445102370d4a6ece79daca365fc263ae19ec54d0e9b9f0b5641772549ec"
+    },
+    "playwright-skill-v2": {
+      "source": "willmarple/playwright-skill",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "4dccae2d5d52f6834ced7461a91349d9b7518690297b0544e3cd7b68a92b0aa7"
+    },
+    "web-access": {
+      "source": "eze-is/web-access",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "eea54461d11015f68b2e2c5865fe41d627b8d21f1a058b7ca5550f69f3d5922f"
+    },
+    "{{ NAME }}": {
+      "source": "jixoai/skill-creator",
+      "sourceType": "github",
+      "skillPath": "templates/SKILL.md",
+      "computedHash": "d51a8f67646d4d3f0df0df189acfdd2db3293cdd3f62a4144a5d96c669195a65"
+    }
+  }
+}
