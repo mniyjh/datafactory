@@ -48,6 +48,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                     h.remove("X-User-Username");
                     h.remove("X-User-Roles");
                     h.remove("X-User-Permissions");
+                    h.remove("X-Tenant-Id");
                     h.remove("X-Internal-Auth");
                     if (StringUtils.hasText(internalAuthKey)) {
                         h.set("X-Internal-Auth", internalAuthKey);

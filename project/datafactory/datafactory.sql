@@ -709,3 +709,64 @@ INSERT INTO `sys_user` (`username`, `password`, `real_name`, `email`, `status`, 
 INSERT INTO `sys_user_role` (`user_id`, `role_id`)
 SELECT (SELECT id FROM sys_user WHERE username = 'admin'), (SELECT id FROM sys_role WHERE code = 'super_admin');
 
+-- =============================================
+-- 多租户: 租户表 + 用户-租户关联
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS `sys_tenant` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `name` VARCHAR(64) NOT NULL COMMENT '租户名称',
+    `code` VARCHAR(64) NOT NULL UNIQUE COMMENT '租户编码',
+    `description` VARCHAR(256) DEFAULT NULL,
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '1=正常 0=禁用',
+    `created_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_code` (`code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='租户表';
+
+CREATE TABLE IF NOT EXISTS `sys_user_tenant` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` BIGINT NOT NULL,
+    `tenant_id` BIGINT NOT NULL,
+    UNIQUE KEY `uk_user_tenant` (`user_id`, `tenant_id`),
+    INDEX `idx_user_id` (`user_id`),
+    INDEX `idx_tenant_id` (`tenant_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户-租户关联表';
+
+-- 初始化默认租户
+INSERT INTO `sys_tenant` (`id`, `name`, `code`, `description`, `status`) VALUES
+(1, '默认租户', 'default', '系统默认租户', 1);
+
+-- 将 admin 用户绑定到默认租户
+INSERT INTO `sys_user_tenant` (`user_id`, `tenant_id`)
+SELECT (SELECT id FROM sys_user WHERE username = 'admin'), 1;
+
+-- =============================================
+-- 为所有业务表添加 tenant_id 列
+-- =============================================
+
+ALTER TABLE `task` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`, ADD INDEX `idx_tenant_id` (`tenant_id`);
+ALTER TABLE `task_dsl` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`, ADD INDEX `idx_tenant_id` (`tenant_id`);
+ALTER TABLE `task_test_config` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`;
+ALTER TABLE `datasource_db` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`, ADD INDEX `idx_tenant_id` (`tenant_id`);
+ALTER TABLE `datasource_db_version` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`;
+ALTER TABLE `external_api` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`, ADD INDEX `idx_tenant_id` (`tenant_id`);
+ALTER TABLE `external_api_version` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`;
+ALTER TABLE `open_api` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`;
+ALTER TABLE `script` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`, ADD INDEX `idx_tenant_id` (`tenant_id`);
+ALTER TABLE `script_version` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`;
+ALTER TABLE `component` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`;
+ALTER TABLE `component_field` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`;
+ALTER TABLE `component_io_param` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`;
+ALTER TABLE `node_instance` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`;
+ALTER TABLE `node_field_value` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`;
+ALTER TABLE `node_io_param_value` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`;
+ALTER TABLE `execution_log` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`, ADD INDEX `idx_tenant_id` (`tenant_id`);
+ALTER TABLE `node_execution_log` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`;
+ALTER TABLE `schedule_job` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`, ADD INDEX `idx_tenant_id` (`tenant_id`);
+ALTER TABLE `schedule_job_task` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`;
+ALTER TABLE `schedule_lock` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`;
+ALTER TABLE `schedule_job_audit_log` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`;
+ALTER TABLE `schedule_job_daily_stats` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`;
+ALTER TABLE `data_lineage` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`;
+

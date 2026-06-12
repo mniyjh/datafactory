@@ -29,5 +29,16 @@ public class LoginVO {
         private String email;
         private List<String> roles;
         private List<String> permissions;
+        private List<TenantInfo> tenants;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TenantInfo {
+        private Long id;
+        private String name;
+        private String code;
     }
 }

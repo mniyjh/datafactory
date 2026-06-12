@@ -3,7 +3,9 @@ package com.cqie.datafactory.configuration.service.impl;
 import com.cqie.datafactory.common.exception.BusinessException;
 import com.cqie.datafactory.configuration.controller.dto.LoginDTO;
 import com.cqie.datafactory.configuration.controller.vo.LoginVO;
+import com.cqie.datafactory.configuration.entity.Tenant;
 import com.cqie.datafactory.configuration.entity.User;
+import com.cqie.datafactory.configuration.mapper.TenantMapper;
 import com.cqie.datafactory.configuration.mapper.UserMapper;
 import com.cqie.datafactory.configuration.security.JwtService;
 import com.cqie.datafactory.configuration.service.AuthService;
@@ -14,6 +16,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -23,6 +26,7 @@ public class AuthServiceImpl implements AuthService {
     private final UserMapper userMapper;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
+    private final TenantMapper tenantMapper;
 
     @Override
     public LoginVO login(LoginDTO dto) {
@@ -46,11 +50,16 @@ public class AuthServiceImpl implements AuthService {
         List<String> roles = userMapper.selectRoleCodesByUserId(user.getId());
         List<String> permissions = userMapper.selectPermissionsByUserId(user.getId());
 
+        List<Tenant> tenants = tenantMapper.selectByUserId(user.getId());
+        List<LoginVO.TenantInfo> tenantInfos = tenants.stream().map(t ->
+                LoginVO.TenantInfo.builder().id(t.getId()).name(t.getName()).code(t.getCode()).build()
+        ).collect(Collectors.toList());
+
         String accessToken = jwtService.generateAccessToken(
                 user.getId(), user.getUsername(), roles, permissions);
         String refreshToken = jwtService.generateRefreshToken(user.getId());
 
-        log.info("用户 {} 登录成功, 角色: {}, 权限数: {}", user.getUsername(), roles, permissions.size());
+        log.info("用户 {} 登录成功, 角色: {}, 权限数: {}, 租户数: {}", user.getUsername(), roles, permissions.size(), tenantInfos.size());
 
         return LoginVO.builder()
                 .accessToken(accessToken)
@@ -64,6 +73,7 @@ public class AuthServiceImpl implements AuthService {
                         .email(user.getEmail())
                         .roles(roles)
                         .permissions(permissions)
+                        .tenants(tenantInfos)
                         .build())
                 .build();
     }

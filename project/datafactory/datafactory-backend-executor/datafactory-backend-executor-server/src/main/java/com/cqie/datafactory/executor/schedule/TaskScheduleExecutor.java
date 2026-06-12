@@ -1,5 +1,6 @@
 package com.cqie.datafactory.executor.schedule;
 
+import com.cqie.datafactory.common.context.TenantContext;
 import com.cqie.datafactory.executor.schedule.entity.ScheduleJob;
 import com.cqie.datafactory.executor.schedule.entity.ScheduleJobTask;
 import com.cqie.datafactory.executor.schedule.event.JobFailureEvent;
@@ -183,10 +184,16 @@ public class TaskScheduleExecutor {
         int retryInterval = job.getRetryInterval() != null ? job.getRetryInterval() : 60;
         Exception lastException = null;
 
+        // 设置租户上下文
+        if (job.getTenantId() != null) {
+            TenantContext.set(job.getTenantId());
+        }
+
         // 获取分布式锁（多实例互斥）
         int lockSec = computeLockSeconds(job);
         if (!distributedLock.tryLock(job.getId(), lockSec)) {
             log.debug("分布式锁: job {} 被其他实例持有，跳过", job.getId());
+            TenantContext.clear();
             return;
         }
 
@@ -227,6 +234,7 @@ public class TaskScheduleExecutor {
                     job.getEnvironment(), LocalDateTime.now()));
         } finally {
             distributedLock.release(job.getId());
+            TenantContext.clear();
         }
     }
 

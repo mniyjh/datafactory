@@ -1,20 +1,16 @@
-package com.cqie.datafactory.configuration.config;
+package com.cqie.datafactory.executor.config;
 
-import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.handler.TenantLineHandler;
-import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.TenantLineInnerInterceptor;
 import com.cqie.datafactory.common.context.TenantContext;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.LongValue;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 
 @Configuration
-public class MybatisPlusConfig {
+public class MybatisPlusTenantConfig {
 
     /** 不需要租户隔离的表 (系统表) */
     private static final String[] IGNORE_TABLES = {
@@ -27,7 +23,6 @@ public class MybatisPlusConfig {
     public MybatisPlusInterceptor mybatisPlusInterceptor() {
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
 
-        // 多租户拦截器
         TenantLineInnerInterceptor tenantInterceptor = new TenantLineInnerInterceptor();
         tenantInterceptor.setTenantLineHandler(new TenantLineHandler() {
             @Override
@@ -55,21 +50,8 @@ public class MybatisPlusConfig {
                 return false;
             }
         });
+
         interceptor.addInnerInterceptor(tenantInterceptor);
-
-        // 分页拦截器
-        interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.MYSQL));
         return interceptor;
-    }
-
-    /**
-     * 解决前端 JS 处理 Long 类型丢失精度的问题
-     */
-    @Bean
-    public Jackson2ObjectMapperBuilderCustomizer jackson2ObjectMapperBuilderCustomizer() {
-        return builder -> {
-            builder.serializerByType(Long.class, ToStringSerializer.instance);
-            builder.serializerByType(Long.TYPE, ToStringSerializer.instance);
-        };
     }
 }
