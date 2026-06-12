@@ -24,6 +24,8 @@
         <lombok.version>1.18.34</lombok.version>
         <grpc.version>1.68.1</grpc.version>
         <protobuf.version>3.25.5</protobuf.version>
+        <jjwt.version>0.12.6</jjwt.version>
+        <bucket4j.version>8.10.1</bucket4j.version>
     </properties>
 
     <dependencyManagement>
