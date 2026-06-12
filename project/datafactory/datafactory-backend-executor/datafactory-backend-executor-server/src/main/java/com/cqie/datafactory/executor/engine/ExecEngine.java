@@ -1,5 +1,6 @@
 package com.cqie.datafactory.executor.engine;
 
+import com.cqie.datafactory.common.context.TenantContext;
 import com.cqie.datafactory.common.exception.BusinessException;
 import com.cqie.datafactory.executor.engine.cache.CacheManager;
 import com.cqie.datafactory.executor.engine.cache.NodeHasher;
@@ -13,9 +14,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 
@@ -35,12 +39,16 @@ public class ExecEngine {
     private final JdbcTemplate jdbcTemplate;
     private final NodeHasher nodeHasher;
     private final CacheManager cacheManager;
+    private final ThreadPoolTaskExecutor taskExecutor;
 
-    public ExecEngine(PluginRegistry pluginRegistry, JdbcTemplate jdbcTemplate, NodeHasher nodeHasher, CacheManager cacheManager) {
+    public ExecEngine(PluginRegistry pluginRegistry, JdbcTemplate jdbcTemplate,
+                      NodeHasher nodeHasher, CacheManager cacheManager,
+                      ThreadPoolTaskExecutor taskExecutor) {
         this.pluginRegistry = pluginRegistry;
         this.jdbcTemplate = jdbcTemplate;
         this.nodeHasher = nodeHasher;
         this.cacheManager = cacheManager;
+        this.taskExecutor = taskExecutor;
     }
 
     public Map<String, Object> execute(String dslContent, String environment,
@@ -49,16 +57,18 @@ public class ExecEngine {
         log.info("ExecEngine.execute triggerParams: {}", triggerParams);
         DslModel dsl = dslParser.parse(dslContent);
         dslValidator.validate(dsl);
-        List<NodeDef> sequence = topoSort.sort(dsl);
+        List<List<NodeDef>> layers = topoSort.layeredSort(dsl);
+        log.info("DAG layers: {} layers total", layers.size());
 
-        Map<String, Map<String, Object>> nodeOutputsMap = new HashMap<>();
-        Map<String, Object> resolvedVars = new HashMap<>();
-        Map<String, Object> finalOutput = new HashMap<>();
+        Map<String, Map<String, Object>> nodeOutputsMap = new ConcurrentHashMap<>();
+        Map<String, Object> resolvedVars = new ConcurrentHashMap<>();
+        Map<String, Object> finalOutput = new ConcurrentHashMap<>();
         Map<String, Object> currentParams = triggerParams != null ? triggerParams : new HashMap<>();
-        Set<String> skipSet = new HashSet<>();
-        Map<String, String> nodeHashMap = new HashMap<>();
+        Set<String> skipSet = ConcurrentHashMap.newKeySet();
+        Map<String, String> nodeHashMap = new ConcurrentHashMap<>();
+        int totalLayers = layers.size();
 
-        // Build outgoing edges index: nodeId → list of edges
+        // Build outgoing edges index: nodeId -> list of edges
         Map<String, List<EdgeDef>> outgoingEdgesMap = new HashMap<>();
         for (EdgeDef e : dsl.getEdges()) {
             outgoingEdgesMap.computeIfAbsent(e.getSourceNodeId(), k -> new ArrayList<>()).add(e);
@@ -70,161 +80,262 @@ public class ExecEngine {
             parentMap.computeIfAbsent(e.getTargetNodeId(), k -> new ArrayList<>()).add(e.getSourceNodeId());
         }
 
-        for (NodeDef node : sequence) {
-            // Skip blocked nodes
-            if (skipSet.contains(node.getId())) {
-                NodeExecutionRecord record = new NodeExecutionRecord();
-                record.nodeId = node.getId();
-                record.nodeName = node.getDisplayName();
-                record.nodeType = node.getType();
-                record.componentCode = node.getComponentCode();
-                record.status = "SKIPPED";
-                record.startTime = System.currentTimeMillis();
-                record.endTime = record.startTime;
-                record.durationMs = 0;
-                record.retryCount = 0;
-                if (nodeCallback != null) {
-                    nodeCallback.accept(record);
-                }
-                continue;
-            }
+        // ---- Layer-based parallel execution ----
+        for (int levelIdx = 0; levelIdx < layers.size(); levelIdx++) {
+            List<NodeDef> layer = layers.get(levelIdx);
+            log.info("[Layer {}/{}] Executing {} node(s): {}", levelIdx + 1, totalLayers,
+                    layer.size(), layer.stream().map(NodeDef::getId).toList());
 
-            long startMs = System.currentTimeMillis();
+            int currentLayer = levelIdx + 1;
+            if (layer.size() == 1) {
+                // Single-node layer — execute directly, avoid thread overhead
+                executeSingleNode(layer.get(0), nodeOutputsMap, parentMap, nodeHashMap,
+                        skipSet, environment, outgoingEdgesMap, currentParams,
+                        resolvedVars, finalOutput, dsl, nodeCallback, levelIdx, totalLayers);
+            } else {
+                // Multi-node layer — execute all nodes in parallel
+                Long tenantId = TenantContext.get();
+                List<Throwable> exceptions = Collections.synchronizedList(new ArrayList<>());
+                List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+                for (NodeDef nodeDef : layer) {
+                    String nodeId = nodeDef.getId();
+                    CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+                        // Propagate tenant context to worker thread
+                        if (tenantId != null) {
+                            TenantContext.set(tenantId);
+                        }
+                        try {
+                            executeSingleNode(nodeDef, nodeOutputsMap, parentMap, nodeHashMap,
+                                    skipSet, environment, outgoingEdgesMap, currentParams,
+                                    resolvedVars, finalOutput, dsl, nodeCallback, levelIdx, totalLayers);
+                        } catch (Exception e) {
+                            exceptions.add(e);
+                            log.error("[Layer {}/{}] Node {} failed: {}", currentLayer, totalLayers,
+                                    nodeId, e.getMessage());
+                        } finally {
+                            TenantContext.clear();
+                        }
+                    }, taskExecutor);
+                    futures.add(future);
+                }
+
+                // Wait for ALL nodes in this layer to finish before proceeding
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+                // If any node failed, propagate the first exception
+                if (!exceptions.isEmpty()) {
+                    log.error("[Layer {}/{}] {} node(s) failed in this layer, aborting pipeline",
+                            levelIdx + 1, totalLayers, exceptions.size());
+                    Throwable first = exceptions.get(0);
+                    if (first instanceof BusinessException) {
+                        throw (BusinessException) first;
+                    }
+                    throw new BusinessException("[Layer " + (levelIdx + 1) + "/" + totalLayers
+                            + "] pipeline execution failed: " + first.getMessage());
+                }
+            }
+        }
+
+        return finalOutput;
+    }
+
+    /**
+     * 执行单个节点（线程安全） — 包含 Branch 阻塞检查、缓存检查、重试执行、输出存储。
+     * <p>
+     * 在多节点层中会被多个线程并行调用，因此所有共享 Map 必须为线程安全实现。
+     *
+     * @param node             当前执行节点
+     * @param nodeOutputsMap   节点输出映射（ConcurrentHashMap）
+     * @param parentMap        反向邻接表（只读）
+     * @param nodeHashMap      Merkle 哈希映射（ConcurrentHashMap）
+     * @param skipSet          被 Branch 阻塞的节点集合
+     * @param environment      运行环境
+     * @param outgoingEdgesMap 出边索引（只读）
+     * @param currentParams    START 节点的外部参数
+     * @param resolvedVars     结果变量映射
+     * @param finalOutput      最终输出累积映射
+     * @param dsl              DSL 模型
+     * @param nodeCallback     执行回调
+     * @param levelIdx         当前层级索引（0-based）
+     * @param totalLayers      总层数
+     */
+    private void executeSingleNode(NodeDef node,
+                                   Map<String, Map<String, Object>> nodeOutputsMap,
+                                   Map<String, List<String>> parentMap,
+                                   Map<String, String> nodeHashMap,
+                                   Set<String> skipSet,
+                                   String environment,
+                                   Map<String, List<EdgeDef>> outgoingEdgesMap,
+                                   Map<String, Object> currentParams,
+                                   Map<String, Object> resolvedVars,
+                                   Map<String, Object> finalOutput,
+                                   DslModel dsl,
+                                   Consumer<NodeExecutionRecord> nodeCallback,
+                                   int levelIdx,
+                                   int totalLayers) {
+
+        // 1. Branch 阻塞检查
+        if (skipSet.contains(node.getId())) {
             NodeExecutionRecord record = new NodeExecutionRecord();
             record.nodeId = node.getId();
             record.nodeName = node.getDisplayName();
             record.nodeType = node.getType();
             record.componentCode = node.getComponentCode();
-            record.startTime = startMs;
-
-            int maxRetries = readRetryCount(node);
-
-            // ---- Incremental Caching ----
-            // Compute upstream hashes for Merkle tree
-            List<String> upstreamHashes = new ArrayList<>();
-            List<String> parents = parentMap.getOrDefault(node.getId(), List.of());
-            for (String parentId : parents) {
-                String ph = nodeHashMap.get(parentId);
-                if (ph != null) {
-                    upstreamHashes.add(ph);
-                }
-            }
-
-            // Resolve field values from JsonNode to Map for hashing
-            Map<String, Object> resolvedFieldValues = new HashMap<>();
-            JsonNode fvNode = node.getFieldValues();
-            if (fvNode != null && !fvNode.isNull()) {
-                fvNode.fieldNames().forEachRemaining(field -> {
-                    JsonNode val = fvNode.get(field);
-                    if (val != null && !val.isNull()) {
-                        resolvedFieldValues.put(field, val.isTextual() ? val.asText() : val.toString());
-                    }
-                });
-            }
-
-            // Compute node hash
-            String nodeHash = nodeHasher.computeHash(node, resolvedFieldValues, upstreamHashes);
-
-            // Check cache
-            Map<String, Object> cachedResult = cacheManager.lookup(nodeHash);
-            if (cachedResult != null) {
-                // Cache hit - use cached result, skip execution
-                nodeOutputsMap.put(node.getId(), cachedResult);
-                nodeHashMap.put(node.getId(), nodeHash);
-
-                record.status = "SUCCESS";
-                record.outputs = cachedResult;
-                record.retryCount = 0;
-
-                log.info("Node {} cache HIT, skipped execution (hash: {})", node.getId(), nodeHash.substring(0, 12));
-            } else {
-                // Cache miss - normal execution with retry loop
-                for (int attempt = 1; attempt <= maxRetries; attempt++) {
-                    Map<String, Object> resolvedInputs = new HashMap<>();
-                    try {
-                        String pluginType = resolvePluginType(node);
-
-                        if ("START".equalsIgnoreCase(node.getType())) {
-                            resolvedInputs.putAll(currentParams);
-                        } else {
-                            for (IoParamDef def : node.getInputParams()) {
-                                String code = def.getParamCode();
-                                resolvedInputs.put(code, paramResolver.resolve(def, nodeOutputsMap));
-                            }
-                        }
-
-                        // END node: 先合并上游输出，再用 inputParams 覆盖（inputParams 是声明性的，实际值来自上游）
-                        if ("END".equalsIgnoreCase(node.getType())) {
-                            for (Map<String, Object> upstream : nodeOutputsMap.values()) {
-                                resolvedInputs.putAll(upstream);
-                            }
-                        }
-
-                        List<EdgeDef> outgoingEdges = outgoingEdgesMap.getOrDefault(node.getId(), List.of());
-                        PluginContext ctx = new PluginContext(node, environment, resolvedInputs, nodeOutputsMap, resolvedVars, outgoingEdges);
-                        Map<String, Object> rawResult = pluginRegistry.get(pluginType).execute(ctx);
-
-                        Map<String, Object> nodeOutputs = buildNodeOutputs(node, resolvedInputs, rawResult);
-                        nodeOutputsMap.put(node.getId(), nodeOutputs);
-
-                        // Store in cache
-                        cacheManager.store(nodeHash, 0L, node.getId(), nodeOutputs, System.currentTimeMillis() - startMs);
-                        nodeHashMap.put(node.getId(), nodeHash);
-
-                        // Branch routing: compute nodes to skip on inactive branches
-                        if ("BRANCH".equalsIgnoreCase(pluginType)) {
-                            Set<String> blocked = computeBlockedNodes(node, rawResult, dsl,
-                                    parentMap, outgoingEdgesMap);
-                            skipSet.addAll(blocked);
-                        }
-
-                        String resultVar = readFieldValue(node.getFieldValues(), "result_var");
-                        if (!resultVar.isBlank()) {
-                            resolvedVars.put(resultVar, nodeOutputs);
-                        }
-                        if ("END".equalsIgnoreCase(node.getType())) {
-                            // 多个 END 节点时合并输出，不覆盖
-                            finalOutput.putAll(nodeOutputs);
-                        }
-
-                        record.status = "SUCCESS";
-                        record.outputs = rawResult;
-                        record.retryCount = attempt - 1;
-                        break;
-                    } catch (Exception e) {
-                        record.retryCount = attempt;
-                        if (attempt >= maxRetries || !RetryUtil.isRetryable(e)) {
-                            record.status = "FAILURE";
-                            record.errorMessage = e.getMessage();
-                            if (nodeCallback != null) {
-                                record.endTime = System.currentTimeMillis();
-                                record.durationMs = record.endTime - startMs;
-                                nodeCallback.accept(record);
-                            }
-                            throw new BusinessException("节点[" + node.getDisplayName() + "]执行失败(已重试" + (attempt - 1) + "次): " + e.getMessage());
-                        }
-                        // 指数退避重试延迟
-                        long delay = Math.min(1000L * (1L << (attempt - 1)), 30000L);
-                        long jitter = ThreadLocalRandom.current().nextLong(501);
-                        log.warn("Node {} retry {}/{} after {}ms", node.getId(), attempt, maxRetries, delay + jitter);
-                        try {
-                            Thread.sleep(delay + jitter);
-                        } catch (InterruptedException ie) {
-                            Thread.currentThread().interrupt();
-                            throw new BusinessException("节点[" + node.getDisplayName() + "]执行中断: " + ie.getMessage());
-                        }
-                    }
-                }
-            }
-
-            record.endTime = System.currentTimeMillis();
-            record.durationMs = record.endTime - startMs;
+            record.status = "SKIPPED";
+            record.startTime = System.currentTimeMillis();
+            record.endTime = record.startTime;
+            record.durationMs = 0;
+            record.retryCount = 0;
+            log.info("[Layer {}/{}] Node {} blocked by branch, skipping",
+                    levelIdx + 1, totalLayers, node.getId());
             if (nodeCallback != null) {
                 nodeCallback.accept(record);
             }
+            return;
         }
 
-        return finalOutput;
+        long startMs = System.currentTimeMillis();
+        NodeExecutionRecord record = new NodeExecutionRecord();
+        record.nodeId = node.getId();
+        record.nodeName = node.getDisplayName();
+        record.nodeType = node.getType();
+        record.componentCode = node.getComponentCode();
+        record.startTime = startMs;
+
+        int maxRetries = readRetryCount(node);
+
+        // ---- Incremental Caching ----
+        // Compute upstream hashes for Merkle tree
+        List<String> upstreamHashes = new ArrayList<>();
+        List<String> parents = parentMap.getOrDefault(node.getId(), List.of());
+        for (String parentId : parents) {
+            String ph = nodeHashMap.get(parentId);
+            if (ph != null) {
+                upstreamHashes.add(ph);
+            }
+        }
+
+        // Resolve field values from JsonNode to Map for hashing
+        Map<String, Object> resolvedFieldValues = new HashMap<>();
+        JsonNode fvNode = node.getFieldValues();
+        if (fvNode != null && !fvNode.isNull()) {
+            fvNode.fieldNames().forEachRemaining(field -> {
+                JsonNode val = fvNode.get(field);
+                if (val != null && !val.isNull()) {
+                    resolvedFieldValues.put(field, val.isTextual() ? val.asText() : val.toString());
+                }
+            });
+        }
+
+        // Compute node hash
+        String nodeHash = nodeHasher.computeHash(node, resolvedFieldValues, upstreamHashes);
+
+        // Check cache
+        Map<String, Object> cachedResult = cacheManager.lookup(nodeHash);
+        if (cachedResult != null) {
+            // Cache hit - use cached result, skip execution
+            nodeOutputsMap.put(node.getId(), cachedResult);
+            nodeHashMap.put(node.getId(), nodeHash);
+
+            record.status = "SUCCESS";
+            record.outputs = cachedResult;
+            record.retryCount = 0;
+
+            log.info("[Layer {}/{}] Node {} cache HIT, skipped execution (hash: {})",
+                    levelIdx + 1, totalLayers, node.getId(),
+                    nodeHash.length() > 12 ? nodeHash.substring(0, 12) : nodeHash);
+        } else {
+            // Cache miss - normal execution with retry loop
+            for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                Map<String, Object> resolvedInputs = new HashMap<>();
+                try {
+                    String pluginType = resolvePluginType(node);
+
+                    if ("START".equalsIgnoreCase(node.getType())) {
+                        resolvedInputs.putAll(currentParams);
+                    } else {
+                        for (IoParamDef def : node.getInputParams()) {
+                            String code = def.getParamCode();
+                            resolvedInputs.put(code, paramResolver.resolve(def, nodeOutputsMap));
+                        }
+                    }
+
+                    // END node: merge all upstream outputs
+                    if ("END".equalsIgnoreCase(node.getType())) {
+                        for (Map<String, Object> upstream : nodeOutputsMap.values()) {
+                            resolvedInputs.putAll(upstream);
+                        }
+                    }
+
+                    List<EdgeDef> outgoingEdges = outgoingEdgesMap.getOrDefault(node.getId(), List.of());
+                    PluginContext ctx = new PluginContext(node, environment, resolvedInputs,
+                            nodeOutputsMap, resolvedVars, outgoingEdges);
+                    Map<String, Object> rawResult = pluginRegistry.get(pluginType).execute(ctx);
+
+                    Map<String, Object> nodeOutputs = buildNodeOutputs(node, resolvedInputs, rawResult);
+                    nodeOutputsMap.put(node.getId(), nodeOutputs);
+
+                    // Store in cache
+                    cacheManager.store(nodeHash, 0L, node.getId(), nodeOutputs,
+                            System.currentTimeMillis() - startMs);
+                    nodeHashMap.put(node.getId(), nodeHash);
+
+                    // Branch routing: compute nodes to skip on inactive branches
+                    if ("BRANCH".equalsIgnoreCase(pluginType)) {
+                        Set<String> blocked = computeBlockedNodes(node, rawResult, dsl,
+                                parentMap, outgoingEdgesMap);
+                        skipSet.addAll(blocked);
+                    }
+
+                    String resultVar = readFieldValue(node.getFieldValues(), "result_var");
+                    if (!resultVar.isBlank()) {
+                        resolvedVars.put(resultVar, nodeOutputs);
+                    }
+                    if ("END".equalsIgnoreCase(node.getType())) {
+                        finalOutput.putAll(nodeOutputs);
+                    }
+
+                    record.status = "SUCCESS";
+                    record.outputs = rawResult;
+                    record.retryCount = attempt - 1;
+                    break;
+                } catch (Exception e) {
+                    record.retryCount = attempt;
+                    if (attempt >= maxRetries || !RetryUtil.isRetryable(e)) {
+                        record.status = "FAILURE";
+                        record.errorMessage = e.getMessage();
+                        if (nodeCallback != null) {
+                            record.endTime = System.currentTimeMillis();
+                            record.durationMs = record.endTime - startMs;
+                            nodeCallback.accept(record);
+                        }
+                        throw new BusinessException("节点[" + node.getDisplayName()
+                                + "]执行失败(已重试" + (attempt - 1) + "次): " + e.getMessage());
+                    }
+                    // 指数退避重试延迟
+                    long delay = Math.min(1000L * (1L << (attempt - 1)), 30000L);
+                    long jitter = ThreadLocalRandom.current().nextLong(501);
+                    log.warn("[Layer {}/{}] Node {} retry {}/{} after {}ms",
+                            levelIdx + 1, totalLayers, node.getId(),
+                            attempt, maxRetries, delay + jitter);
+                    try {
+                        Thread.sleep(delay + jitter);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new BusinessException("节点[" + node.getDisplayName()
+                                + "]执行中断: " + ie.getMessage());
+                    }
+                }
+            }
+        }
+
+        // Callback for successful / cache-hit execution
+        record.endTime = System.currentTimeMillis();
+        record.durationMs = record.endTime - startMs;
+        if (nodeCallback != null) {
+            nodeCallback.accept(record);
+        }
     }
 
     /**
