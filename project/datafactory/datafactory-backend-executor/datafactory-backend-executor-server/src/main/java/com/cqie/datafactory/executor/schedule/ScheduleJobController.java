@@ -47,7 +47,14 @@ public class ScheduleJobController {
     @PreAuthorize("hasAuthority('schedule:read')")
     public Result<List<ScheduleJob>> list() {
         List<ScheduleJob> jobs = scheduleJobService.list();
-        scheduleJobService.loadJobTasksBatch(jobs);
+        List<Long> jobIds = jobs.stream().map(ScheduleJob::getId).toList();
+        Map<Long, List<ScheduleJobTask>> tasksMap = scheduleJobService.loadJobTasksBatch(jobIds);
+        for (ScheduleJob j : jobs) {
+            List<ScheduleJobTask> tasks = tasksMap.get(j.getId());
+            if (tasks != null) {
+                j.setJobTasks(tasks);
+            }
+        }
         return Result.success(jobs);
     }
 

@@ -6,6 +6,9 @@ import com.baomidou.mybatisplus.extension.plugins.inner.TenantLineInnerIntercept
 import com.cqie.datafactory.common.context.TenantContext;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.LongValue;
+import org.apache.ibatis.session.ExecutorType;
+import org.apache.ibatis.session.SqlSessionFactory;
+import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -53,5 +56,10 @@ public class MybatisPlusTenantConfig {
 
         interceptor.addInnerInterceptor(tenantInterceptor);
         return interceptor;
+    }
+
+    @Bean
+    public SqlSessionTemplate batchSqlSessionTemplate(SqlSessionFactory sqlSessionFactory) {
+        return new SqlSessionTemplate(sqlSessionFactory, ExecutorType.BATCH);
     }
 }

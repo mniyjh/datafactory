@@ -97,6 +97,7 @@ public class ExecEngine {
                 Long tenantId = TenantContext.get();
                 List<Throwable> exceptions = Collections.synchronizedList(new ArrayList<>());
                 List<CompletableFuture<Void>> futures = new ArrayList<>();
+                int levelIdxSnapshot = levelIdx;
 
                 for (NodeDef nodeDef : layer) {
                     String nodeId = nodeDef.getId();
@@ -108,7 +109,7 @@ public class ExecEngine {
                         try {
                             executeSingleNode(nodeDef, nodeOutputsMap, parentMap, nodeHashMap,
                                     skipSet, environment, outgoingEdgesMap, currentParams,
-                                    resolvedVars, finalOutput, dsl, nodeCallback, levelIdx, totalLayers);
+                                    resolvedVars, finalOutput, dsl, nodeCallback, levelIdxSnapshot, totalLayers);
                         } catch (Exception e) {
                             exceptions.add(e);
                             log.error("[Layer {}/{}] Node {} failed: {}", currentLayer, totalLayers,

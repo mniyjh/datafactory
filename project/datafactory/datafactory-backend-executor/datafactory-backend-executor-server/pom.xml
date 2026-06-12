@@ -98,6 +98,10 @@
             <artifactId>aviator</artifactId>
             <version>5.4.3</version>
         </dependency>
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
         <!-- gRPC -->
         <dependency>
             <groupId>io.grpc</groupId>

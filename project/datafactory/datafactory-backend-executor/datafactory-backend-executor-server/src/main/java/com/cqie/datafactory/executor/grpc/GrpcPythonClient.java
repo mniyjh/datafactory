@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 @Component
@@ -24,25 +25,36 @@ public class GrpcPythonClient {
 
     private static final Logger log = LoggerFactory.getLogger(GrpcPythonClient.class);
 
-    private final ManagedChannel channel;
+    private final ConcurrentHashMap<String, ManagedChannel> channelCache = new ConcurrentHashMap<>();
     private final PythonExecutorGrpc.PythonExecutorBlockingStub stub;
 
     public GrpcPythonClient(
             @Value("${grpc.python.host:127.0.0.1}") String host,
             @Value("${grpc.python.port:50051}") int port) {
-        this.channel = ManagedChannelBuilder.forAddress(host, port)
-                .usePlaintext()
-                .build();
+        ManagedChannel channel = getOrCreateChannel(host, port);
         this.stub = PythonExecutorGrpc.newBlockingStub(channel);
+    }
+
+    private ManagedChannel getOrCreateChannel(String host, int port) {
+        String key = host + ":" + port;
+        return channelCache.computeIfAbsent(key, k ->
+                ManagedChannelBuilder.forAddress(host, port)
+                        .usePlaintext()
+                        .keepAliveTime(30, TimeUnit.SECONDS)
+                        .keepAliveTimeout(10, TimeUnit.SECONDS)
+                        .build()
+        );
     }
 
     @PreDestroy
     public void shutdown() {
-        try {
-            channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        channelCache.values().forEach(channel -> {
+            try {
+                channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
     }
 
     public Map<String, Object> execute(String scriptContent, String scriptType,

@@ -9,6 +9,15 @@ spring:
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 5000
+      idle-timeout: 300000
+      max-lifetime: 600000
+      cachePrepStmts: true
+      prepStmtCacheSize: 250
+      prepStmtCacheSqlLimit: 2048
   cloud:
     nacos:
       server-addr: 127.0.0.1:8848
