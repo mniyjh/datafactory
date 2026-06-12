@@ -28,6 +28,9 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
     @Value("${jwt.secret}")
     private String jwtSecret;
 
+    @Value("${security.internal-auth-key:}")
+    private String internalAuthKey;
+
     private static final List<String> WHITELIST = List.of(
             "/auth/login",
             "/auth/refresh",
@@ -38,13 +41,17 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        // Strip any incoming X-User-* headers to prevent spoofing
+        // Strip any incoming X-User-* headers to prevent spoofing, add internal auth key
         ServerHttpRequest cleanedRequest = exchange.getRequest().mutate()
                 .headers(h -> {
                     h.remove("X-User-Id");
                     h.remove("X-User-Username");
                     h.remove("X-User-Roles");
                     h.remove("X-User-Permissions");
+                    h.remove("X-Internal-Auth");
+                    if (StringUtils.hasText(internalAuthKey)) {
+                        h.set("X-Internal-Auth", internalAuthKey);
+                    }
                 })
                 .build();
         exchange = exchange.mutate().request(cleanedRequest).build();

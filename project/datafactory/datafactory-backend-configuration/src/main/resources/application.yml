@@ -38,6 +38,7 @@ logging:
     console: "%d{HH:mm:ss.SSS} [%X{traceId}] %-5level %logger{36} - %msg%n"
 
 security:
+  internal-auth-key: ${INTERNAL_AUTH_KEY:}
   datasource:
     secret-key: ${DATASOURCE_ENCRYPT_KEY}
 

@@ -78,6 +78,7 @@ datafactory:
       retention-days: 7
 
 security:
+  internal-auth-key: ${INTERNAL_AUTH_KEY:}
   datasource:
     secret-key: ${DATASOURCE_ENCRYPT_KEY}
 
