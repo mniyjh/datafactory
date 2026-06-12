@@ -10,8 +10,6 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.FilterType;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.time.LocalDateTime;
@@ -22,17 +20,6 @@ import java.time.LocalDateTime;
         "com.cqie.datafactory.configuration",
         "com.cqie.datafactory.common"
 })
-@ComponentScan(
-    basePackages = {
-        "com.cqie.datafactory.executor",
-        "com.cqie.datafactory.configuration",
-        "com.cqie.datafactory.common"
-    },
-    excludeFilters = @ComponentScan.Filter(
-        type = FilterType.REGEX,
-        pattern = "com\\.cqie\\.datafactory\\.configuration\\.config\\..*"
-    )
-)
 @MapperScan({"com.cqie.datafactory.executor.mapper", "com.cqie.datafactory.executor.schedule.mapper", "com.cqie.datafactory.configuration.mapper"})
 @EnableFeignClients(basePackages = "com.cqie.datafactory.executor.feign")
 @EnableScheduling
