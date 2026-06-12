@@ -90,10 +90,10 @@ spring:
             maxAge: 3600
 
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:datafactory-test-jwt-secret-key-2026-min-32}
 
 security:
-  internal-auth-key: ${INTERNAL_AUTH_KEY:}
+  internal-auth-key: ${INTERNAL_AUTH_KEY:test-internal-auth-key-2026}
 
 logging:
   pattern:

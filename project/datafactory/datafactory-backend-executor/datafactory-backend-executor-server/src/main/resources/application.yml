@@ -93,9 +93,9 @@ datafactory:
       retention-days: 7
 
 security:
-  internal-auth-key: ${INTERNAL_AUTH_KEY:}
+  internal-auth-key: ${INTERNAL_AUTH_KEY:test-internal-auth-key-2026}
   datasource:
-    secret-key: ${DATASOURCE_ENCRYPT_KEY}
+    secret-key: ${DATASOURCE_ENCRYPT_KEY:RGF0YUZhY3RvcnlERU1PS2V5MjAyNiEhMTIzNDU2Nzg=}
 
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:datafactory-test-jwt-secret-key-2026-min-32}

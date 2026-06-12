@@ -51,12 +51,12 @@ logging:
     console: '{"time":"%d{yyyy-MM-dd HH:mm:ss.SSS}","level":"%-5level","logger":"%logger{36}","traceId":"%X{traceId}","msg":"%msg"}%n'
 
 security:
-  internal-auth-key: ${INTERNAL_AUTH_KEY:}
+  internal-auth-key: ${INTERNAL_AUTH_KEY:test-internal-auth-key-2026}
   datasource:
-    secret-key: ${DATASOURCE_ENCRYPT_KEY}
+    secret-key: ${DATASOURCE_ENCRYPT_KEY:RGF0YUZhY3RvcnlERU1PS2V5MjAyNiEhMTIzNDU2Nzg=}
 
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:datafactory-test-jwt-secret-key-2026-min-32}
   access-token-expiration: 86400
   refresh-token-expiration: 604800
 

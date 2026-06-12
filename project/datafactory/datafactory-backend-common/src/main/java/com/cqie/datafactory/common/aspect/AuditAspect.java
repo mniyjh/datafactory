@@ -21,7 +21,6 @@ import java.util.Arrays;
 
 @Slf4j
 @Aspect
-@Component
 @RequiredArgsConstructor
 public class AuditAspect {
 

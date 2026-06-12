@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import java.util.concurrent.Executor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -43,7 +44,7 @@ public class ExecEngine {
 
     public ExecEngine(PluginRegistry pluginRegistry, JdbcTemplate jdbcTemplate,
                       NodeHasher nodeHasher, CacheManager cacheManager,
-                      Executor taskExecutor) {
+                      @Qualifier("dagExecutionExecutor") Executor taskExecutor) {
         this.pluginRegistry = pluginRegistry;
         this.jdbcTemplate = jdbcTemplate;
         this.nodeHasher = nodeHasher;

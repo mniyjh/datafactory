@@ -699,11 +699,10 @@ WHERE code IN ('task:read', 'datasource:read', 'script:read', 'schedule:read', '
 
 -- =============================================
 -- 初始化管理员用户 (admin / admin123)
--- 密码: $2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi
--- (BCrypt 加密的 "admin123")
+-- 密码: admin123 (BCrypt 加密)
 -- =============================================
 INSERT INTO `sys_user` (`username`, `password`, `real_name`, `email`, `status`, `created_by`) VALUES
-('admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '系统管理员', 'admin@datafactory.dev', 1, 'SYSTEM');
+('admin', '$2a$10$l2KLCtdHeXrOYPUsx9kAnutLzc9ElZuiBwQQxTUSWgQ1tydkfxNpW', '系统管理员', 'admin@datafactory.dev', 1, 'SYSTEM');
 
 -- 为 admin 分配 super_admin 角色
 INSERT INTO `sys_user_role` (`user_id`, `role_id`)

@@ -8,7 +8,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
         "com.cqie.datafactory.configuration",
         "com.cqie.datafactory.common"
 })
-@MapperScan("com.cqie.datafactory.configuration.mapper")
+@MapperScan({"com.cqie.datafactory.configuration.mapper", "com.cqie.datafactory.common.mapper"})
 public class ConfigurationApplication {
     public static void main(String[] args) {
         SpringApplication.run(ConfigurationApplication.class, args);

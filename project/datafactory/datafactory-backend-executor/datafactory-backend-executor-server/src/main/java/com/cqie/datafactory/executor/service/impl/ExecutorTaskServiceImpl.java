@@ -47,6 +47,7 @@ public class ExecutorTaskServiceImpl extends ServiceImpl<ExecutorTaskMapper, Exe
     private final ExecEngine execEngine;
     private final DataLineageMapper dataLineageMapper;
     private final TaskMetrics taskMetrics;
+    @org.springframework.beans.factory.annotation.Qualifier("dagExecutionExecutor")
     private final java.util.concurrent.Executor taskExecutor;
 
     @Value("${datafactory.execution.idempotency.enabled:true}")

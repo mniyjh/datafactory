@@ -17,7 +17,6 @@ import java.time.LocalDateTime;
 @Slf4j
 @SpringBootApplication(scanBasePackages = {
         "com.cqie.datafactory.executor",
-        "com.cqie.datafactory.configuration",
         "com.cqie.datafactory.common"
 })
 @MapperScan({"com.cqie.datafactory.executor.mapper", "com.cqie.datafactory.executor.schedule.mapper", "com.cqie.datafactory.configuration.mapper"})
