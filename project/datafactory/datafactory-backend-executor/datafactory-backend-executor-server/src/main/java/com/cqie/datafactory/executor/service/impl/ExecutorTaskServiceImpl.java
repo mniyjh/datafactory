@@ -25,6 +25,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,6 +48,9 @@ public class ExecutorTaskServiceImpl extends ServiceImpl<ExecutorTaskMapper, Exe
     private final DataLineageMapper dataLineageMapper;
     private final TaskMetrics taskMetrics;
     private final org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor taskExecutor;
+
+    @Value("${datafactory.execution.idempotency.enabled:true}")
+    private boolean idempotencyEnabled;
 
     @Override
     public String execute(Long id, Map<String, Object> params, String environment, String triggerType, Long scheduleJobId) {
@@ -89,6 +93,20 @@ public class ExecutorTaskServiceImpl extends ServiceImpl<ExecutorTaskMapper, Exe
         // 3. 生成执行ID并准备异步执行
         String executionId = "exec_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
 
+        // 幂等性检查（每分钟粒度去重，防止重复提交）
+        String idempotencyKey = id + "_" + (System.currentTimeMillis() / 60000);
+        if (idempotencyEnabled) {
+            ExecutionLog existing = executionLogService.getOne(
+                new LambdaQueryWrapper<ExecutionLog>()
+                    .eq(ExecutionLog::getIdempotencyKey, idempotencyKey)
+                    .eq(ExecutionLog::getStatus, "RUNNING")
+            );
+            if (existing != null) {
+                log.warn("Duplicate execution detected for idempotencyKey: {}", idempotencyKey);
+                throw new BusinessException("任务正在执行中，请勿重复提交");
+            }
+        }
+
         long[] startMsHolder = new long[1];
         taskExecutor.execute(() -> {
             try {
@@ -96,6 +114,7 @@ public class ExecutorTaskServiceImpl extends ServiceImpl<ExecutorTaskMapper, Exe
                 ExecutionLog logData = new ExecutionLog();
                 logData.setExecutionId(executionId);
                 logData.setTaskId(task.getId());
+                logData.setIdempotencyKey(idempotencyKey);
                 logData.setTaskName(task.getTaskName());
                 logData.setTaskVersion(dsl.getVersion());
                 logData.setEnvironment(environment);

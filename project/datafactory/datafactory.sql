@@ -786,3 +786,23 @@ CREATE TABLE IF NOT EXISTS `executor_instance` (
     INDEX `idx_heartbeat` (`last_heartbeat`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='执行器实例注册表';
 
+-- =============================================
+-- DAG增量缓存: 节点级结果缓存
+-- =============================================
+CREATE TABLE IF NOT EXISTS `node_cache` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `node_hash` VARCHAR(64) NOT NULL UNIQUE COMMENT 'SHA256(node_type+field_values+upstream_hashes)',
+    `task_id` BIGINT NOT NULL COMMENT '任务ID',
+    `node_id` VARCHAR(128) NOT NULL COMMENT '节点标识',
+    `result_json` MEDIUMTEXT NOT NULL COMMENT 'JSON序列化的执行结果',
+    `cost_ms` BIGINT DEFAULT NULL COMMENT '执行耗时(毫秒)',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `last_used_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `tenant_id` BIGINT NOT NULL DEFAULT 1,
+    INDEX `idx_node_hash` (`node_hash`),
+    INDEX `idx_task_id` (`task_id`),
+    INDEX `idx_last_used` (`last_used_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='DAG节点结果缓存表';
+
+ALTER TABLE `execution_log` ADD COLUMN `idempotency_key` VARCHAR(128) DEFAULT NULL COMMENT '幂等键: taskId_nodeId_timestamp', ADD INDEX `idx_idempotency_key` (`idempotency_key`);
+

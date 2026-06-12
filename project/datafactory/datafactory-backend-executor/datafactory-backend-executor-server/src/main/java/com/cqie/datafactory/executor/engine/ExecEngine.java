@@ -1,6 +1,8 @@
 package com.cqie.datafactory.executor.engine;
 
 import com.cqie.datafactory.common.exception.BusinessException;
+import com.cqie.datafactory.executor.engine.cache.CacheManager;
+import com.cqie.datafactory.executor.engine.cache.NodeHasher;
 import com.cqie.datafactory.executor.engine.core.*;
 import com.cqie.datafactory.executor.engine.core.model.*;
 import com.cqie.datafactory.executor.engine.core.model.NodeDef.IoParamDef;
@@ -31,10 +33,14 @@ public class ExecEngine {
 
     private final PluginRegistry pluginRegistry;
     private final JdbcTemplate jdbcTemplate;
+    private final NodeHasher nodeHasher;
+    private final CacheManager cacheManager;
 
-    public ExecEngine(PluginRegistry pluginRegistry, JdbcTemplate jdbcTemplate) {
+    public ExecEngine(PluginRegistry pluginRegistry, JdbcTemplate jdbcTemplate, NodeHasher nodeHasher, CacheManager cacheManager) {
         this.pluginRegistry = pluginRegistry;
         this.jdbcTemplate = jdbcTemplate;
+        this.nodeHasher = nodeHasher;
+        this.cacheManager = cacheManager;
     }
 
     public Map<String, Object> execute(String dslContent, String environment,
@@ -50,6 +56,7 @@ public class ExecEngine {
         Map<String, Object> finalOutput = new HashMap<>();
         Map<String, Object> currentParams = triggerParams != null ? triggerParams : new HashMap<>();
         Set<String> skipSet = new HashSet<>();
+        Map<String, String> nodeHashMap = new HashMap<>();
 
         // Build outgoing edges index: nodeId → list of edges
         Map<String, List<EdgeDef>> outgoingEdgesMap = new HashMap<>();
@@ -92,75 +99,120 @@ public class ExecEngine {
 
             int maxRetries = readRetryCount(node);
 
-            for (int attempt = 1; attempt <= maxRetries; attempt++) {
-                Map<String, Object> resolvedInputs = new HashMap<>();
-                try {
-                    String pluginType = resolvePluginType(node);
+            // ---- Incremental Caching ----
+            // Compute upstream hashes for Merkle tree
+            List<String> upstreamHashes = new ArrayList<>();
+            List<String> parents = parentMap.getOrDefault(node.getId(), List.of());
+            for (String parentId : parents) {
+                String ph = nodeHashMap.get(parentId);
+                if (ph != null) {
+                    upstreamHashes.add(ph);
+                }
+            }
 
-                    if ("START".equalsIgnoreCase(node.getType())) {
-                        resolvedInputs.putAll(currentParams);
-                    } else {
-                        for (IoParamDef def : node.getInputParams()) {
-                            String code = def.getParamCode();
-                            resolvedInputs.put(code, paramResolver.resolve(def, nodeOutputsMap));
-                        }
+            // Resolve field values from JsonNode to Map for hashing
+            Map<String, Object> resolvedFieldValues = new HashMap<>();
+            JsonNode fvNode = node.getFieldValues();
+            if (fvNode != null && !fvNode.isNull()) {
+                fvNode.fieldNames().forEachRemaining(field -> {
+                    JsonNode val = fvNode.get(field);
+                    if (val != null && !val.isNull()) {
+                        resolvedFieldValues.put(field, val.isTextual() ? val.asText() : val.toString());
                     }
+                });
+            }
 
-                    // END node: 先合并上游输出，再用 inputParams 覆盖（inputParams 是声明性的，实际值来自上游）
-                    if ("END".equalsIgnoreCase(node.getType())) {
-                        for (Map<String, Object> upstream : nodeOutputsMap.values()) {
-                            resolvedInputs.putAll(upstream);
-                        }
-                    }
+            // Compute node hash
+            String nodeHash = nodeHasher.computeHash(node, resolvedFieldValues, upstreamHashes);
 
-                    List<EdgeDef> outgoingEdges = outgoingEdgesMap.getOrDefault(node.getId(), List.of());
-                    PluginContext ctx = new PluginContext(node, environment, resolvedInputs, nodeOutputsMap, resolvedVars, outgoingEdges);
-                    Map<String, Object> rawResult = pluginRegistry.get(pluginType).execute(ctx);
+            // Check cache
+            Map<String, Object> cachedResult = cacheManager.lookup(nodeHash);
+            if (cachedResult != null) {
+                // Cache hit - use cached result, skip execution
+                nodeOutputsMap.put(node.getId(), cachedResult);
+                nodeHashMap.put(node.getId(), nodeHash);
 
-                    Map<String, Object> nodeOutputs = buildNodeOutputs(node, resolvedInputs, rawResult);
-                    nodeOutputsMap.put(node.getId(), nodeOutputs);
+                record.status = "SUCCESS";
+                record.outputs = cachedResult;
+                record.retryCount = 0;
 
-                    // Branch routing: compute nodes to skip on inactive branches
-                    if ("BRANCH".equalsIgnoreCase(pluginType)) {
-                        Set<String> blocked = computeBlockedNodes(node, rawResult, dsl,
-                                parentMap, outgoingEdgesMap);
-                        skipSet.addAll(blocked);
-                    }
-
-                    String resultVar = readFieldValue(node.getFieldValues(), "result_var");
-                    if (!resultVar.isBlank()) {
-                        resolvedVars.put(resultVar, nodeOutputs);
-                    }
-                    if ("END".equalsIgnoreCase(node.getType())) {
-                        // 多个 END 节点时合并输出，不覆盖
-                        finalOutput.putAll(nodeOutputs);
-                    }
-
-                    record.status = "SUCCESS";
-                    record.outputs = rawResult;
-                    record.retryCount = attempt - 1;
-                    break;
-                } catch (Exception e) {
-                    record.retryCount = attempt;
-                    if (attempt >= maxRetries || !RetryUtil.isRetryable(e)) {
-                        record.status = "FAILURE";
-                        record.errorMessage = e.getMessage();
-                        if (nodeCallback != null) {
-                            record.endTime = System.currentTimeMillis();
-                            record.durationMs = record.endTime - startMs;
-                            nodeCallback.accept(record);
-                        }
-                        throw new BusinessException("节点[" + node.getDisplayName() + "]执行失败(已重试" + (attempt - 1) + "次): " + e.getMessage());
-                    }
-                    // 指数退避重试延迟
-                    long delay = Math.min(1000L * (1L << (attempt - 1)), 30000L);
-                    long jitter = ThreadLocalRandom.current().nextLong(501);
-                    log.warn("Node {} retry {}/{} after {}ms", node.getId(), attempt, maxRetries, delay + jitter);
+                log.info("Node {} cache HIT, skipped execution (hash: {})", node.getId(), nodeHash.substring(0, 12));
+            } else {
+                // Cache miss - normal execution with retry loop
+                for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                    Map<String, Object> resolvedInputs = new HashMap<>();
                     try {
-                        Thread.sleep(delay + jitter);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        throw new BusinessException("节点[" + node.getDisplayName() + "]执行中断: " + ie.getMessage());
+                        String pluginType = resolvePluginType(node);
+
+                        if ("START".equalsIgnoreCase(node.getType())) {
+                            resolvedInputs.putAll(currentParams);
+                        } else {
+                            for (IoParamDef def : node.getInputParams()) {
+                                String code = def.getParamCode();
+                                resolvedInputs.put(code, paramResolver.resolve(def, nodeOutputsMap));
+                            }
+                        }
+
+                        // END node: 先合并上游输出，再用 inputParams 覆盖（inputParams 是声明性的，实际值来自上游）
+                        if ("END".equalsIgnoreCase(node.getType())) {
+                            for (Map<String, Object> upstream : nodeOutputsMap.values()) {
+                                resolvedInputs.putAll(upstream);
+                            }
+                        }
+
+                        List<EdgeDef> outgoingEdges = outgoingEdgesMap.getOrDefault(node.getId(), List.of());
+                        PluginContext ctx = new PluginContext(node, environment, resolvedInputs, nodeOutputsMap, resolvedVars, outgoingEdges);
+                        Map<String, Object> rawResult = pluginRegistry.get(pluginType).execute(ctx);
+
+                        Map<String, Object> nodeOutputs = buildNodeOutputs(node, resolvedInputs, rawResult);
+                        nodeOutputsMap.put(node.getId(), nodeOutputs);
+
+                        // Store in cache
+                        cacheManager.store(nodeHash, 0L, node.getId(), nodeOutputs, System.currentTimeMillis() - startMs);
+                        nodeHashMap.put(node.getId(), nodeHash);
+
+                        // Branch routing: compute nodes to skip on inactive branches
+                        if ("BRANCH".equalsIgnoreCase(pluginType)) {
+                            Set<String> blocked = computeBlockedNodes(node, rawResult, dsl,
+                                    parentMap, outgoingEdgesMap);
+                            skipSet.addAll(blocked);
+                        }
+
+                        String resultVar = readFieldValue(node.getFieldValues(), "result_var");
+                        if (!resultVar.isBlank()) {
+                            resolvedVars.put(resultVar, nodeOutputs);
+                        }
+                        if ("END".equalsIgnoreCase(node.getType())) {
+                            // 多个 END 节点时合并输出，不覆盖
+                            finalOutput.putAll(nodeOutputs);
+                        }
+
+                        record.status = "SUCCESS";
+                        record.outputs = rawResult;
+                        record.retryCount = attempt - 1;
+                        break;
+                    } catch (Exception e) {
+                        record.retryCount = attempt;
+                        if (attempt >= maxRetries || !RetryUtil.isRetryable(e)) {
+                            record.status = "FAILURE";
+                            record.errorMessage = e.getMessage();
+                            if (nodeCallback != null) {
+                                record.endTime = System.currentTimeMillis();
+                                record.durationMs = record.endTime - startMs;
+                                nodeCallback.accept(record);
+                            }
+                            throw new BusinessException("节点[" + node.getDisplayName() + "]执行失败(已重试" + (attempt - 1) + "次): " + e.getMessage());
+                        }
+                        // 指数退避重试延迟
+                        long delay = Math.min(1000L * (1L << (attempt - 1)), 30000L);
+                        long jitter = ThreadLocalRandom.current().nextLong(501);
+                        log.warn("Node {} retry {}/{} after {}ms", node.getId(), attempt, maxRetries, delay + jitter);
+                        try {
+                            Thread.sleep(delay + jitter);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            throw new BusinessException("节点[" + node.getDisplayName() + "]执行中断: " + ie.getMessage());
+                        }
                     }
                 }
             }

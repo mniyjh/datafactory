@@ -26,6 +26,7 @@ public class ExecutionLog {
     private String inputParams;
     private String outputResult;
     private String errorMessage;
+    private String idempotencyKey;
     private String createdBy;
     private LocalDateTime createdTime;
 }
