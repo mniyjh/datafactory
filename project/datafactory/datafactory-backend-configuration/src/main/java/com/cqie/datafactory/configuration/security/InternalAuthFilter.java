@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -22,6 +23,9 @@ import java.util.stream.Collectors;
 @Component
 public class InternalAuthFilter extends OncePerRequestFilter {
 
+    @Value("${security.internal-auth-key:}")
+    private String internalAuthKey;
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                      HttpServletResponse response,
@@ -32,6 +36,14 @@ public class InternalAuthFilter extends OncePerRequestFilter {
         String username = request.getHeader("X-User-Username");
         String rolesHeader = request.getHeader("X-User-Roles");
         String permissionsHeader = request.getHeader("X-User-Permissions");
+
+        // Validate internal auth key to prevent header spoofing from direct service access
+        String internalAuth = request.getHeader("X-Internal-Auth");
+        if (StringUtils.hasText(internalAuthKey) && !internalAuthKey.equals(internalAuth)) {
+            log.warn("Invalid X-Internal-Auth header from IP: {}", request.getRemoteAddr());
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         if (StringUtils.hasText(userId) && StringUtils.hasText(username)) {
             List<String> permissions = StringUtils.hasText(permissionsHeader)

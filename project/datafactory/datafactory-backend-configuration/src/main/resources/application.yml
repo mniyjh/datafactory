@@ -39,7 +39,7 @@ logging:
 
 security:
   datasource:
-    secret-key: ${DATASOURCE_ENCRYPT_KEY:RGF0YUZhY3RvcnlERU1PS2V5MjAyNiEhMTIzNDU2Nzg=}
+    secret-key: ${DATASOURCE_ENCRYPT_KEY}
 
 jwt:
   secret: ${JWT_SECRET}

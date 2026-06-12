@@ -10,6 +10,7 @@ import com.cqie.datafactory.executor.schedule.entity.ScheduleJobTask;
 import com.cqie.datafactory.executor.schedule.mapper.ScheduleJobAuditLogMapper;
 import com.cqie.datafactory.executor.schedule.mapper.ScheduleJobDailyStatsMapper;
 import com.cqie.datafactory.executor.service.ExecutionLogService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -43,6 +44,7 @@ public class ScheduleJobController {
     // ===================== CRUD =====================
 
     @GetMapping
+    @PreAuthorize("hasAuthority('schedule:read')")
     public Result<List<ScheduleJob>> list() {
         List<ScheduleJob> jobs = scheduleJobService.list();
         scheduleJobService.loadJobTasksBatch(jobs);
@@ -50,6 +52,7 @@ public class ScheduleJobController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('schedule:read')")
     public Result<ScheduleJob> get(@PathVariable("id") Long id) {
         ScheduleJob job = scheduleJobService.getById(id);
         if (job == null) return Result.fail("定时任务不存在");
@@ -59,6 +62,7 @@ public class ScheduleJobController {
 
     /** 查询定时任务关联的所有任务 */
     @GetMapping("/{id}/tasks")
+    @PreAuthorize("hasAuthority('schedule:read')")
     public Result<List<ScheduleJobTask>> getJobTasks(@PathVariable("id") Long id) {
         ScheduleJob job = scheduleJobService.getById(id);
         if (job == null) return Result.fail("定时任务不存在");
@@ -67,12 +71,14 @@ public class ScheduleJobController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('schedule:write')")
     public Result<Long> create(@RequestBody ScheduleJob job) {
         scheduleJobService.save(job);
         return Result.success(job.getId());
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('schedule:write')")
     public Result<?> update(@PathVariable("id") Long id, @RequestBody ScheduleJob job) {
         job.setId(id);
         scheduleJobService.updateById(job);
@@ -80,18 +86,21 @@ public class ScheduleJobController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('schedule:write')")
     public Result<?> delete(@PathVariable("id") Long id) {
         scheduleJobService.removeById(id);
         return Result.success();
     }
 
     @PostMapping("/{id}/toggle")
+    @PreAuthorize("hasAuthority('schedule:write')")
     public Result<?> toggle(@PathVariable("id") Long id) {
         boolean ok = scheduleJobService.toggleStatus(id);
         return ok ? Result.success() : Result.fail("定时任务不存在");
     }
 
     @PostMapping("/{id}/trigger")
+    @PreAuthorize("hasAuthority('schedule:write')")
     public Result<Map<String, Object>> trigger(@PathVariable("id") Long id) {
         ScheduleJob job = scheduleJobService.getById(id);
         if (job == null) return Result.fail("定时任务不存在");
@@ -109,6 +118,7 @@ public class ScheduleJobController {
     // ===================== 执行历史 =====================
 
     @GetMapping("/{id}/executions")
+    @PreAuthorize("hasAuthority('schedule:read')")
     public Result<List<ExecutionLog>> executions(@PathVariable("id") Long id) {
         ScheduleJob job = scheduleJobService.getById(id);
         if (job == null) return Result.fail("定时任务不存在");
@@ -122,6 +132,7 @@ public class ScheduleJobController {
     // ===================== 审计日志 =====================
 
     @GetMapping("/{id}/audit-logs")
+    @PreAuthorize("hasAuthority('schedule:read')")
     public Result<List<ScheduleJobAuditLog>> auditLogs(@PathVariable("id") Long id) {
         List<ScheduleJobAuditLog> logs = auditLogMapper.selectList(
                 new LambdaQueryWrapper<ScheduleJobAuditLog>()
@@ -133,6 +144,7 @@ public class ScheduleJobController {
     // ===================== 调度统计 =====================
 
     @GetMapping("/{id}/daily-stats")
+    @PreAuthorize("hasAuthority('schedule:read')")
     public Result<List<ScheduleJobDailyStats>> dailyStats(
             @PathVariable("id") Long id,
             @RequestParam(value = "days", defaultValue = "7") int days) {
@@ -146,6 +158,7 @@ public class ScheduleJobController {
     }
 
     @GetMapping("/{id}/stats-summary")
+    @PreAuthorize("hasAuthority('schedule:read')")
     public Result<Map<String, Object>> statsSummary(@PathVariable("id") Long id) {
         ScheduleJob job = scheduleJobService.getById(id);
         if (job == null) return Result.fail("定时任务不存在");

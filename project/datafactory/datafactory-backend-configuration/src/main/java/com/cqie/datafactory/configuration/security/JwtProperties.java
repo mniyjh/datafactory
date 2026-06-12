@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "jwt")
 public class JwtProperties {
     /** JWT签名密钥 (HMAC-SHA256, 最少256位) */
-    private String secret = "${JWT_SECRET:}";
+    private String secret;
     /** Access Token 过期时间(秒), 默认24小时 */
     private long accessTokenExpiration = 86400;
     /** Refresh Token 过期时间(秒), 默认7天 */

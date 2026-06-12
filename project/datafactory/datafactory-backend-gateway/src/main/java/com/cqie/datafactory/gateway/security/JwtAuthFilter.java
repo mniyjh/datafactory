@@ -38,6 +38,17 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        // Strip any incoming X-User-* headers to prevent spoofing
+        ServerHttpRequest cleanedRequest = exchange.getRequest().mutate()
+                .headers(h -> {
+                    h.remove("X-User-Id");
+                    h.remove("X-User-Username");
+                    h.remove("X-User-Roles");
+                    h.remove("X-User-Permissions");
+                })
+                .build();
+        exchange = exchange.mutate().request(cleanedRequest).build();
+
         String path = exchange.getRequest().getURI().getPath();
 
         // 白名单放行
@@ -90,8 +101,11 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
     }
 
     private Claims parseToken(String token) {
-        SecretKey key = Keys.hmacShaKeyFor(
-                Arrays.copyOf(jwtSecret.getBytes(StandardCharsets.UTF_8), 32));
+        byte[] keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
+        if (keyBytes.length < 32) {
+            keyBytes = Arrays.copyOf(keyBytes, 32);
+        }
+        SecretKey key = Keys.hmacShaKeyFor(keyBytes);
         return Jwts.parser()
                 .verifyWith(key)
                 .build()

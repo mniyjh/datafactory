@@ -74,6 +74,12 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException("Refresh Token 无效或已过期");
         }
 
+        // Validate this is a refresh token, not an access token
+        String tokenType = jwtService.parseToken(refreshToken).get("type", String.class);
+        if (!"refresh".equals(tokenType)) {
+            throw new BusinessException("无效的Token类型");
+        }
+
         Long userId = jwtService.getUserIdFromToken(refreshToken);
         User user = userMapper.selectById(userId);
 
