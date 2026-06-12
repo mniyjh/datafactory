@@ -770,3 +770,19 @@ ALTER TABLE `schedule_job_audit_log` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFA
 ALTER TABLE `schedule_job_daily_stats` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`;
 ALTER TABLE `data_lineage` ADD COLUMN `tenant_id` BIGINT NOT NULL DEFAULT 1 AFTER `id`;
 
+-- =============================================
+-- 调度HA: 执行器实例注册表
+-- =============================================
+CREATE TABLE IF NOT EXISTS `executor_instance` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `instance_id` VARCHAR(128) NOT NULL UNIQUE COMMENT '实例ID (host:port)',
+    `host` VARCHAR(128) NOT NULL COMMENT '主机地址',
+    `port` INT NOT NULL COMMENT '端口',
+    `status` VARCHAR(16) NOT NULL DEFAULT 'ONLINE' COMMENT 'ONLINE/OFFLINE',
+    `last_heartbeat` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '最后心跳时间',
+    `started_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '启动时间',
+    `tenant_id` BIGINT NOT NULL DEFAULT 1,
+    INDEX `idx_status` (`status`),
+    INDEX `idx_heartbeat` (`last_heartbeat`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='执行器实例注册表';
+

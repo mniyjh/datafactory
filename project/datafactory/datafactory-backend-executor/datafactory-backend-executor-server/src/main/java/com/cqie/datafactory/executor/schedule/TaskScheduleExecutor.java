@@ -7,12 +7,17 @@ import com.cqie.datafactory.executor.schedule.event.JobFailureEvent;
 import com.cqie.datafactory.executor.schedule.event.JobSuccessEvent;
 import com.cqie.datafactory.executor.schedule.guard.ExecutionGuard;
 import com.cqie.datafactory.executor.schedule.util.CronHelper;
+import com.cqie.datafactory.executor.service.ExecutorInstanceService;
 import com.cqie.datafactory.executor.service.ExecutorTaskService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -38,20 +43,48 @@ public class TaskScheduleExecutor {
     private final TaskExecutionQueue taskExecutionQueue;
     private final DistributedScheduleLock distributedLock;
     private final ApplicationEventPublisher eventPublisher;
+    private final ExecutorInstanceService executorInstanceService;
+    private final Environment environment;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Value("${datafactory.executor.instance-id:}")
+    private String instanceId;
 
     public TaskScheduleExecutor(ScheduleJobService scheduleJobService,
                                 ExecutorTaskService executorTaskService,
                                 ExecutionGuard executionGuard,
                                 TaskExecutionQueue taskExecutionQueue,
                                 DistributedScheduleLock distributedLock,
-                                ApplicationEventPublisher eventPublisher) {
+                                ApplicationEventPublisher eventPublisher,
+                                ExecutorInstanceService executorInstanceService,
+                                Environment environment) {
         this.scheduleJobService = scheduleJobService;
         this.executorTaskService = executorTaskService;
         this.executionGuard = executionGuard;
         this.taskExecutionQueue = taskExecutionQueue;
         this.distributedLock = distributedLock;
         this.eventPublisher = eventPublisher;
+        this.executorInstanceService = executorInstanceService;
+        this.environment = environment;
+    }
+
+    @PostConstruct
+    public void init() {
+        if (instanceId != null && !instanceId.isBlank()) {
+            String port = environment.getProperty("server.port", "8082");
+            executorInstanceService.register(instanceId, Integer.parseInt(port));
+            log.info("Executor HA initialized: instance={}, online={}, slot={}",
+                    instanceId,
+                    executorInstanceService.getOnlineCount(),
+                    executorInstanceService.getMySlotIndex(instanceId));
+        }
+    }
+
+    @PreDestroy
+    public void destroy() {
+        if (instanceId != null && !instanceId.isBlank()) {
+            executorInstanceService.shutdown(instanceId);
+        }
     }
 
     @Scheduled(fixedRate = 30000)
@@ -62,6 +95,13 @@ public class TaskScheduleExecutor {
         for (ScheduleJob job : jobs) {
             // 高频任务由 HighFrequencyScheduler 管理
             if (CronHelper.isHighFrequency(job.getCronExpression())) {
+                continue;
+            }
+
+            // 槽位分片：只处理分配给当前实例的作业
+            if (instanceId != null && !instanceId.isBlank()
+                    && !executorInstanceService.shouldHandle(instanceId, job.getId())) {
+                log.debug("Job {} assigned to another executor, skipping", job.getId());
                 continue;
             }
 

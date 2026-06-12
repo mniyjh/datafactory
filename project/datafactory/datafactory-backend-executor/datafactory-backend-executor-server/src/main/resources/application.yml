@@ -68,6 +68,8 @@ grpc:
     port: ${GRPC_PYTHON_PORT:50051}
 
 datafactory:
+  executor:
+    instance-id: ${EXECUTOR_INSTANCE_ID:exec-${server.port}}
   scheduler:
     high-frequency:
       enabled: true
