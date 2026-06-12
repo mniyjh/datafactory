@@ -47,7 +47,7 @@ public class ExecutorTaskServiceImpl extends ServiceImpl<ExecutorTaskMapper, Exe
     private final ExecEngine execEngine;
     private final DataLineageMapper dataLineageMapper;
     private final TaskMetrics taskMetrics;
-    private final org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor taskExecutor;
+    private final java.util.concurrent.Executor taskExecutor;
 
     @Value("${datafactory.execution.idempotency.enabled:true}")
     private boolean idempotencyEnabled;

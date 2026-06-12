@@ -1,0 +1,22 @@
+# DataFactory JVM 启动参数 (Java 21+)
+# 用法: java ${JAVA_OPTS} -jar app.jar
+
+# 堆内存
+-Xms512m -Xmx2g
+
+# G1GC 调优
+-XX:+UseG1GC
+-XX:MaxGCPauseMillis=100
+-XX:+UseStringDeduplication
+
+# OOM 自动 dump + 退出
+-XX:+HeapDumpOnOutOfMemoryError
+-XX:HeapDumpPath=./logs/
+-XX:+ExitOnOutOfMemoryError
+
+# GC 日志
+-Xlog:gc*:file=./logs/gc.log:time,uptime:filecount=5,filesize=10M
+
+# 容器环境 (Docker/K8s)
+-XX:+UseContainerSupport
+-XX:MaxRAMPercentage=70.0

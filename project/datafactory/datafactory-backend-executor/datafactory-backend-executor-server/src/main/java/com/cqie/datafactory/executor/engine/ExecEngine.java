@@ -14,7 +14,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import java.util.concurrent.Executor;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -39,11 +39,11 @@ public class ExecEngine {
     private final JdbcTemplate jdbcTemplate;
     private final NodeHasher nodeHasher;
     private final CacheManager cacheManager;
-    private final ThreadPoolTaskExecutor taskExecutor;
+    private final Executor taskExecutor;
 
     public ExecEngine(PluginRegistry pluginRegistry, JdbcTemplate jdbcTemplate,
                       NodeHasher nodeHasher, CacheManager cacheManager,
-                      ThreadPoolTaskExecutor taskExecutor) {
+                      Executor taskExecutor) {
         this.pluginRegistry = pluginRegistry;
         this.jdbcTemplate = jdbcTemplate;
         this.nodeHasher = nodeHasher;
