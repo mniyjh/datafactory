@@ -68,6 +68,19 @@
         </span>
         <span>{{ pageTitle }}</span>
         <div class="header-right">
+          <a-select
+            v-if="authStore.tenants.length > 1"
+            :value="authStore.currentTenantId"
+            @change="handleTenantChange"
+            style="width: 160px; margin-right: 16px;"
+            size="small"
+          >
+            <a-select-option
+              v-for="t in authStore.tenants"
+              :key="t.id"
+              :value="t.id"
+            >{{ t.name }}</a-select-option>
+          </a-select>
           <a-dropdown>
             <a-space class="user-info">
               <a-avatar size="small"><UserOutlined /></a-avatar>
@@ -185,6 +198,10 @@ const handleLogout = async () => {
 
 const goProfile = () => {
   message.info('个人中心功能开发中');
+};
+
+const handleTenantChange = (tenantId) => {
+  authStore.switchTenant(tenantId);
 };
 </script>
 

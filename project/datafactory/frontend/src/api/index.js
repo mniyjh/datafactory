@@ -10,12 +10,16 @@ const api = axios.create({
   timeout: 15000,
 });
 
-// Request interceptor: attach JWT token
+// Request interceptor: attach JWT token + tenant ID
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('accessToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    const tenantId = localStorage.getItem('tenantId');
+    if (tenantId) {
+      config.headers['X-Tenant-Id'] = tenantId;
     }
     return config;
   },
