@@ -66,22 +66,6 @@
       </div>
     </div>
 
-    <!-- 实时执行列表 -->
-    <div class="section-title-row" style="margin-top:16px"><span class="section-label">今日最近执行</span></div>
-    <div class="panel" style="margin-bottom:16px">
-      <div class="body" style="overflow-x:auto">
-        <a-table :columns="todayColumns" :data-source="metrics.recentExecutions" :pagination="false" size="small" row-key="start_time" v-if="metrics.recentExecutions?.length">
-          <template #bodyCell="{ column, record }">
-            <template v-if="column.dataIndex === 'status'">
-              <a-tag :color="String(record.status) === 'SUCCESS' ? 'success' : 'error'">
-                {{ String(record.status) === 'SUCCESS' ? '成功' : '失败' }}
-              </a-tag>
-            </template>
-          </template>
-        </a-table>
-        <a-empty v-else description="暂无执行记录" />
-      </div>
-    </div>
   </div>
 </template>
 
@@ -101,7 +85,6 @@ const metrics = ref({
   threadCount: 0,
   database: {},
   today: { total: 0, success: 0, failure: 0, avgDurationMs: 0 },
-  recentExecutions: [],
   timestamp: 0
 });
 
@@ -135,13 +118,6 @@ const recentColumns = [
   { title: '环境', dataIndex: 'environment', width: 80 },
   { title: '状态', dataIndex: 'status', width: 80 },
   { title: '执行时间', dataIndex: 'startTime', width: 160 }
-];
-
-const todayColumns = [
-  { title: '任务', dataIndex: 'task_name', ellipsis: true },
-  { title: '状态', dataIndex: 'status', width: 80 },
-  { title: '环境', dataIndex: 'environment', width: 80 },
-  { title: '时间', dataIndex: 'start_time', width: 170 }
 ];
 
 const loadDashboardData = async () => {
