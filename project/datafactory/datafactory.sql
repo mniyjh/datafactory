@@ -561,3 +561,151 @@ INSERT IGNORE INTO component_field (component_id, field_code, field_name, value_
 (8, 'subTaskId', '选择子任务', 'STRING', 'MULTI_SELECT', '{"optionsSource":{"sourceType":"TASK"}}', 1, 1, '从任务管理中选择已发布到生产环境的任务'),
 (8, 'result_var', '结果变量', 'STRING', 'TEXTAREA', NULL, 0, 2, '子任务结果绑定的变量名');
 
+-- =============================================
+-- 安全模块: 用户/角色/权限 (RBAC)
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS `sys_user` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `username` VARCHAR(64) NOT NULL UNIQUE COMMENT '用户名',
+    `password` VARCHAR(256) NOT NULL COMMENT 'BCrypt加密密码',
+    `real_name` VARCHAR(64) DEFAULT NULL COMMENT '真实姓名',
+    `email` VARCHAR(128) DEFAULT NULL COMMENT '邮箱',
+    `phone` VARCHAR(20) DEFAULT NULL COMMENT '手机号',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 1=正常 0=禁用',
+    `created_by` VARCHAR(64) DEFAULT NULL COMMENT '创建人',
+    `created_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_by` VARCHAR(64) DEFAULT NULL COMMENT '更新人',
+    `updated_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX `idx_username` (`username`),
+    INDEX `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统用户表';
+
+CREATE TABLE IF NOT EXISTS `sys_role` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `name` VARCHAR(64) NOT NULL COMMENT '角色名称',
+    `code` VARCHAR(64) NOT NULL UNIQUE COMMENT '角色编码',
+    `description` VARCHAR(256) DEFAULT NULL COMMENT '角色描述',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 1=正常 0=禁用',
+    `created_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_code` (`code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统角色表';
+
+CREATE TABLE IF NOT EXISTS `sys_permission` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `name` VARCHAR(64) NOT NULL COMMENT '权限名称',
+    `code` VARCHAR(128) NOT NULL UNIQUE COMMENT '权限编码 (resource:action)',
+    `resource` VARCHAR(64) NOT NULL COMMENT '资源标识',
+    `action` VARCHAR(32) NOT NULL COMMENT '操作: read/write/execute/delete',
+    `description` VARCHAR(256) DEFAULT NULL COMMENT '权限描述',
+    `created_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_code` (`code`),
+    INDEX `idx_resource` (`resource`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统权限表';
+
+CREATE TABLE IF NOT EXISTS `sys_user_role` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `role_id` BIGINT NOT NULL COMMENT '角色ID',
+    UNIQUE KEY `uk_user_role` (`user_id`, `role_id`),
+    INDEX `idx_user_id` (`user_id`),
+    INDEX `idx_role_id` (`role_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户角色关联表';
+
+CREATE TABLE IF NOT EXISTS `sys_role_permission` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `role_id` BIGINT NOT NULL COMMENT '角色ID',
+    `permission_id` BIGINT NOT NULL COMMENT '权限ID',
+    UNIQUE KEY `uk_role_permission` (`role_id`, `permission_id`),
+    INDEX `idx_role_id` (`role_id`),
+    INDEX `idx_permission_id` (`permission_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='角色权限关联表';
+
+CREATE TABLE IF NOT EXISTS `sys_audit_log` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` BIGINT DEFAULT NULL COMMENT '操作用户ID',
+    `username` VARCHAR(64) DEFAULT NULL COMMENT '操作用户名',
+    `operation` VARCHAR(128) NOT NULL COMMENT '操作描述',
+    `method` VARCHAR(16) NOT NULL COMMENT 'HTTP方法',
+    `url` VARCHAR(512) NOT NULL COMMENT '请求URL',
+    `params` TEXT DEFAULT NULL COMMENT '请求参数(截断)',
+    `ip` VARCHAR(64) DEFAULT NULL COMMENT '客户端IP',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '1=成功 0=失败',
+    `error_msg` VARCHAR(1024) DEFAULT NULL COMMENT '错误信息',
+    `cost_ms` BIGINT DEFAULT NULL COMMENT '耗时(毫秒)',
+    `created_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX `idx_user_id` (`user_id`),
+    INDEX `idx_created_time` (`created_time`),
+    INDEX `idx_operation` (`operation`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='API审计日志表';
+
+-- =============================================
+-- 初始化权限数据
+-- =============================================
+INSERT INTO `sys_permission` (`name`, `code`, `resource`, `action`, `description`) VALUES
+('读取任务', 'task:read', 'task', 'read', '查看任务列表和详情'),
+('创建编辑任务', 'task:write', 'task', 'write', '创建/编辑/删除任务'),
+('执行任务', 'task:execute', 'task', 'execute', '手动执行任务'),
+('读取数据源', 'datasource:read', 'datasource', 'read', '查看数据源配置'),
+('管理数据源', 'datasource:write', 'datasource', 'write', '创建/编辑/删除数据源'),
+('读取脚本', 'script:read', 'script', 'read', '查看脚本内容'),
+('管理脚本', 'script:write', 'script', 'write', '创建/编辑/删除脚本'),
+('读取调度', 'schedule:read', 'schedule', 'read', '查看调度配置'),
+('管理调度', 'schedule:write', 'schedule', 'write', '创建/编辑/启停调度'),
+('管理用户', 'user:write', 'user', 'write', '创建/编辑/禁用用户'),
+('读取监控', 'monitor:read', 'monitor', 'read', '查看监控面板'),
+('读取日志', 'log:read', 'log', 'read', '查看执行日志');
+
+-- =============================================
+-- 初始化角色数据
+-- =============================================
+INSERT INTO `sys_role` (`name`, `code`, `description`, `status`) VALUES
+('超级管理员', 'super_admin', '拥有系统所有权限', 1),
+('管理员', 'admin', '用户管理 + 配置管理 + 调度管理', 1),
+('数据开发', 'developer', '任务/脚本/数据源 CRUD + 执行', 1),
+('运维', 'operator', '查看 + 执行 + 监控', 1),
+('只读', 'viewer', '仅查看所有资源', 1);
+
+-- =============================================
+-- 角色-权限关联 (super_admin 拥有所有权限)
+-- =============================================
+INSERT INTO `sys_role_permission` (`role_id`, `permission_id`)
+SELECT (SELECT id FROM sys_role WHERE code = 'super_admin'), id FROM sys_permission;
+
+-- admin: user管理 + 所有读权限
+INSERT INTO `sys_role_permission` (`role_id`, `permission_id`)
+SELECT (SELECT id FROM sys_role WHERE code = 'admin'), id FROM sys_permission
+WHERE code IN ('task:read', 'task:write', 'task:execute', 'datasource:read', 'datasource:write',
+               'script:read', 'script:write', 'schedule:read', 'schedule:write',
+               'user:write', 'monitor:read', 'log:read');
+
+-- developer: 任务/脚本/数据源 CRUD + 执行 + 日志查看
+INSERT INTO `sys_role_permission` (`role_id`, `permission_id`)
+SELECT (SELECT id FROM sys_role WHERE code = 'developer'), id FROM sys_permission
+WHERE code IN ('task:read', 'task:write', 'task:execute', 'datasource:read', 'datasource:write',
+               'script:read', 'script:write', 'schedule:read', 'log:read');
+
+-- operator: 查看 + 执行 + 监控
+INSERT INTO `sys_role_permission` (`role_id`, `permission_id`)
+SELECT (SELECT id FROM sys_role WHERE code = 'operator'), id FROM sys_permission
+WHERE code IN ('task:read', 'task:execute', 'datasource:read', 'script:read',
+               'schedule:read', 'monitor:read', 'log:read');
+
+-- viewer: 仅查看
+INSERT INTO `sys_role_permission` (`role_id`, `permission_id`)
+SELECT (SELECT id FROM sys_role WHERE code = 'viewer'), id FROM sys_permission
+WHERE code IN ('task:read', 'datasource:read', 'script:read', 'schedule:read', 'monitor:read', 'log:read');
+
+-- =============================================
+-- 初始化管理员用户 (admin / admin123)
+-- 密码: $2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi
+-- (BCrypt 加密的 "admin123")
+-- =============================================
+INSERT INTO `sys_user` (`username`, `password`, `real_name`, `email`, `status`, `created_by`) VALUES
+('admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '系统管理员', 'admin@datafactory.dev', 1, 'SYSTEM');
+
+-- 为 admin 分配 super_admin 角色
+INSERT INTO `sys_user_role` (`user_id`, `role_id`)
+SELECT (SELECT id FROM sys_user WHERE username = 'admin'), (SELECT id FROM sys_role WHERE code = 'super_admin');
+
