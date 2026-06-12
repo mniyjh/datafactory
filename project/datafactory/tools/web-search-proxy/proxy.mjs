@@ -36,8 +36,8 @@ const server = http.createServer(async (req, res) => {
       // 注入 web_search 工具到请求中
       if (!payload.tools) payload.tools = [];
       payload.tools.push({
-        type: 'web_search',
-        web_search: { enabled: true }
+        type: 'web_search_20260209',
+        web_search_20260209: { enabled: true }
       });
 
       const upstream = await fetch(TARGET + API_PATH, {
