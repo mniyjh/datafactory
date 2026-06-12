@@ -1,4 +1,4 @@
-package com.cqie.datafactory.configuration.config;
+package com.cqie.datafactory.executor.config;
 
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
@@ -7,13 +7,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-public class SwaggerConfig {
+public class ExecutorSwaggerConfig {
     @Bean
-    public OpenAPI configurationOpenAPI() {
+    public OpenAPI executorOpenAPI() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("DataFactory Configuration API")
-                        .description("配置管理服务 — 脚本/数据源/API/组件/调度")
+                        .title("DataFactory Executor API")
+                        .description("执行引擎服务 — 任务执行/调度/日志查询")
                         .version("1.0.0")
                         .contact(new Contact().name("DataFactory Team")));
     }
