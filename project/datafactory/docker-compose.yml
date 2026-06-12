@@ -1,30 +1,31 @@
 version: '3.8'
 
 services:
-  mysql:
-    image: mysql:5.7
-    container_name: datafactory-mysql
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: 123456
-      MYSQL_DATABASE: datafactory
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysql-data:/var/lib/mysql
-      - ./datafactory.sql:/docker-entrypoint-initdb.d/init.sql
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-
-  nacos:
-    image: nacos/nacos-server:v2.3.1
-    container_name: datafactory-nacos
-    restart: unless-stopped
-    environment:
-      MODE: standalone
-      PREFER_HOST_MODE: hostname
-    ports:
-      - "8848:8848"
-      - "9848:9848"
+  # mysql 和 nacos 已在宿主机运行，需要时取消注释
+  # mysql:
+  #   image: mysql:5.7
+  #   container_name: datafactory-mysql
+  #   restart: unless-stopped
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: 123456
+  #     MYSQL_DATABASE: datafactory
+  #   ports:
+  #     - "3306:3306"
+  #   volumes:
+  #     - mysql-data:/var/lib/mysql
+  #     - ./datafactory.sql:/docker-entrypoint-initdb.d/init.sql
+  #   command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+  #
+  # nacos:
+  #   image: nacos/nacos-server:v2.3.1
+  #   container_name: datafactory-nacos
+  #   restart: unless-stopped
+  #   environment:
+  #     MODE: standalone
+  #     PREFER_HOST_MODE: hostname
+  #   ports:
+  #     - "8848:8848"
+  #     - "9848:9848"
 
   prometheus:
     image: prom/prometheus:v2.53.0
@@ -55,6 +56,5 @@ services:
       - ./docs/grafana-dashboard.json:/etc/grafana/provisioning/dashboards/datafactory.json
 
 volumes:
-  mysql-data:
   prometheus-data:
   grafana-data:
