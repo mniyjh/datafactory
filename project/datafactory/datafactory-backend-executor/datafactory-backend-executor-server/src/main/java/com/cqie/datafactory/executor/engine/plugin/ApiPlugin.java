@@ -1,12 +1,17 @@
 package com.cqie.datafactory.executor.engine.plugin;
 
 import com.cqie.datafactory.common.exception.BusinessException;
+import com.cqie.datafactory.common.exception.NonTransientException;
+import com.cqie.datafactory.common.exception.TransientException;
 import com.cqie.datafactory.common.result.Result;
 import com.cqie.datafactory.executor.feign.ExternalApiFeignClient;
 import com.cqie.datafactory.executor.feign.vo.ApiVersionResolveVO;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -17,14 +22,18 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.*;
 
+@Slf4j
 @Component
 public class ApiPlugin implements ComponentPlugin {
 
     private final ExternalApiFeignClient externalApiFeignClient;
+    private final CircuitBreakerRegistry cbRegistry;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public ApiPlugin(ExternalApiFeignClient externalApiFeignClient) {
+    public ApiPlugin(ExternalApiFeignClient externalApiFeignClient,
+                     CircuitBreakerRegistry cbRegistry) {
         this.externalApiFeignClient = externalApiFeignClient;
+        this.cbRegistry = cbRegistry;
     }
 
     @Override
@@ -195,12 +204,28 @@ public class ApiPlugin implements ComponentPlugin {
         factory.setReadTimeout(Duration.ofSeconds(timeoutSec));
         RestTemplate rt = new RestTemplate(factory);
 
-        ResponseEntity<String> response = rt.exchange(uri, httpMethod, request, String.class);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("statusCode", response.getStatusCode().value());
-        result.put("body", response.getBody());
-        return result;
+        CircuitBreaker cb = cbRegistry.circuitBreaker("apiPlugin");
+        try {
+            return cb.executeCallable(() -> {
+                ResponseEntity<String> response = rt.exchange(uri, httpMethod, request, String.class);
+                Map<String, Object> result = new HashMap<>();
+                result.put("statusCode", response.getStatusCode().value());
+                result.put("body", response.getBody());
+                return result;
+            });
+        } catch (Exception e) {
+            if (cb.getState() == CircuitBreaker.State.OPEN) {
+                log.error("API circuit breaker OPEN - failing fast");
+                throw new NonTransientException("API 服务熔断，请稍后重试", e);
+            }
+            if (e.getMessage() != null && (e.getMessage().contains("timeout")
+                    || e.getMessage().contains("Read timed out")
+                    || e.getMessage().contains("Connect timed out")
+                    || e.getMessage().contains("Connection refused"))) {
+                throw new TransientException("API 调用异常: " + e.getMessage(), e);
+            }
+            throw new NonTransientException("API 执行失败: " + e.getMessage(), e);
+        }
     }
 
     private String buildSoapEnvelope(Map<String, Object> body) {

@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 高频（秒级）Cron 调度管理器。
@@ -254,7 +255,10 @@ public class HighFrequencyScheduler {
                     if (attempt > 0) {
                         ScheduleJob latest = scheduleJobService.getById(job.getId());
                         if (latest == null || latest.getStatus() == null || latest.getStatus() != 1) return;
-                        Thread.sleep(retryInterval * 1000L);
+                        // 使用指数退避重试
+                        long delay = Math.min(retryInterval * 1000L * (1L << (attempt - 1)), 60000L);
+                        long jitter = ThreadLocalRandom.current().nextLong(1001);
+                        Thread.sleep(delay + jitter);
                     }
                     doHfFireTask(job, link, attempt);
                     job.setCurrentRetry(0);

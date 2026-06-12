@@ -6,6 +6,7 @@ import com.cqie.datafactory.executor.engine.core.model.*;
 import com.cqie.datafactory.executor.engine.core.model.NodeDef.IoParamDef;
 import com.cqie.datafactory.executor.engine.plugin.PluginContext;
 import com.cqie.datafactory.executor.engine.plugin.PluginRegistry;
+import com.cqie.datafactory.executor.util.RetryUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +14,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 
 @Component
@@ -140,7 +142,7 @@ public class ExecEngine {
                     break;
                 } catch (Exception e) {
                     record.retryCount = attempt;
-                    if (attempt >= maxRetries) {
+                    if (attempt >= maxRetries || !RetryUtil.isRetryable(e)) {
                         record.status = "FAILURE";
                         record.errorMessage = e.getMessage();
                         if (nodeCallback != null) {
@@ -149,6 +151,16 @@ public class ExecEngine {
                             nodeCallback.accept(record);
                         }
                         throw new BusinessException("节点[" + node.getDisplayName() + "]执行失败(已重试" + (attempt - 1) + "次): " + e.getMessage());
+                    }
+                    // 指数退避重试延迟
+                    long delay = Math.min(1000L * (1L << (attempt - 1)), 30000L);
+                    long jitter = ThreadLocalRandom.current().nextLong(501);
+                    log.warn("Node {} retry {}/{} after {}ms", node.getId(), attempt, maxRetries, delay + jitter);
+                    try {
+                        Thread.sleep(delay + jitter);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new BusinessException("节点[" + node.getDisplayName() + "]执行中断: " + ie.getMessage());
                     }
                 }
             }

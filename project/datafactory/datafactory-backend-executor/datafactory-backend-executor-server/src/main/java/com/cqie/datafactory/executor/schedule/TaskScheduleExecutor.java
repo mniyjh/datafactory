@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 标准调度执行器（分钟级及以上 Cron）。
@@ -246,7 +247,10 @@ public class TaskScheduleExecutor {
                             log.info("重试中止: job {} 已被禁用或删除", job.getId());
                             return;
                         }
-                        Thread.sleep(retryInterval * 1000L);
+                        // 使用指数退避重试
+                        long delay = Math.min(retryInterval * 1000L * (1L << (attempt - 1)), 60000L);
+                        long jitter = ThreadLocalRandom.current().nextLong(1001);
+                        Thread.sleep(delay + jitter);
                     }
                     doFireTask(job, link, attempt);
                     job.setCurrentRetry(0);

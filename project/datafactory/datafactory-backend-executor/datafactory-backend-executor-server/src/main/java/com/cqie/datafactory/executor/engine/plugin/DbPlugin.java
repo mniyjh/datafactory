@@ -1,30 +1,38 @@
 package com.cqie.datafactory.executor.engine.plugin;
 
 import com.cqie.datafactory.common.exception.BusinessException;
+import com.cqie.datafactory.common.exception.NonTransientException;
+import com.cqie.datafactory.common.exception.TransientException;
 import com.cqie.datafactory.common.result.Result;
 import com.cqie.datafactory.executor.feign.DatasourceFeignClient;
 import com.cqie.datafactory.executor.feign.ScriptFeignClient;
 import com.cqie.datafactory.executor.feign.vo.DbVersionResolveVO;
 import com.cqie.datafactory.executor.feign.vo.ScriptExecutionVO;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
 
+@Slf4j
 @Component
 public class DbPlugin implements ComponentPlugin {
 
     private final JdbcTemplate jdbcTemplate;
     private final DatasourceFeignClient datasourceFeignClient;
     private final ScriptFeignClient scriptFeignClient;
+    private final CircuitBreakerRegistry cbRegistry;
 
     public DbPlugin(JdbcTemplate jdbcTemplate, DatasourceFeignClient datasourceFeignClient,
-                    ScriptFeignClient scriptFeignClient) {
+                    ScriptFeignClient scriptFeignClient, CircuitBreakerRegistry cbRegistry) {
         this.jdbcTemplate = jdbcTemplate;
         this.datasourceFeignClient = datasourceFeignClient;
         this.scriptFeignClient = scriptFeignClient;
+        this.cbRegistry = cbRegistry;
     }
 
     @Override
@@ -50,13 +58,29 @@ public class DbPlugin implements ComponentPlugin {
         // 3. 替换 SQL 中的 ${param} / #{param} 占位符
         sql = resolveSqlPlaceholders(sql, context.getResolvedInputs());
 
-        // 4. 执行
-        List<Map<String, Object>> rows = execTemplate.queryForList(sql);
-        Map<String, Object> result = new HashMap<>();
-        result.put("rows", rows);
-        result.put("rowCount", rows.size());
-        result.put("environment", context.getEnvironment());
-        return result;
+        // 4. Circuit Breaker 包裹实际的 JDBC 执行
+        String finalSql = sql;
+        JdbcTemplate finalExecTemplate = execTemplate;
+        CircuitBreaker cb = cbRegistry.circuitBreaker("dbPlugin");
+        try {
+            return cb.executeCallable(() -> {
+                List<Map<String, Object>> rows = finalExecTemplate.queryForList(finalSql);
+                Map<String, Object> result = new HashMap<>();
+                result.put("rows", rows);
+                result.put("rowCount", rows.size());
+                result.put("environment", context.getEnvironment());
+                return result;
+            });
+        } catch (Exception e) {
+            if (cb.getState() == CircuitBreaker.State.OPEN) {
+                log.error("DB circuit breaker OPEN - failing fast");
+                throw new NonTransientException("数据库服务熔断，请稍后重试", e);
+            }
+            if (e.getMessage() != null && e.getMessage().contains("timeout")) {
+                throw new TransientException("数据库查询超时", e);
+            }
+            throw new NonTransientException("数据库执行失败: " + e.getMessage(), e);
+        }
     }
 
     /**
