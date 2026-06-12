@@ -1,6 +1,6 @@
 @echo off
 title Web Search Proxy
-cd /d "%~dp0tools\web-search-proxy"
+cd /d "%~dp0..\tools\web-search-proxy"
 
 where node >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
