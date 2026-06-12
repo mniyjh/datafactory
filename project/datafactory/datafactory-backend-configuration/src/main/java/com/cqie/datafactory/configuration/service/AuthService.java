@@ -6,5 +6,5 @@ import com.cqie.datafactory.configuration.controller.vo.LoginVO;
 public interface AuthService {
     LoginVO login(LoginDTO loginDTO);
     LoginVO refresh(String refreshToken);
-    void logout(Long userId);
+    void logout(Long userId, String accessToken);
 }

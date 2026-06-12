@@ -35,8 +35,13 @@ public class AuthController {
 
     @Operation(summary = "用户登出")
     @PostMapping("/logout")
-    public Result<Void> logout(@RequestAttribute(value = "userId", required = false) Long userId) {
-        authService.logout(userId);
+    public Result<Void> logout(@RequestAttribute(value = "userId", required = false) Long userId,
+                                @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        String accessToken = null;
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            accessToken = authHeader.substring(7);
+        }
+        authService.logout(userId, accessToken);
         return Result.success();
     }
 }

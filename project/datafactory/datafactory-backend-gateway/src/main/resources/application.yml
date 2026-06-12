@@ -92,6 +92,10 @@ jwt:
 security:
   internal-auth-key: ${INTERNAL_AUTH_KEY:}
 
+logging:
+  pattern:
+    console: '{"time":"%d{yyyy-MM-dd HH:mm:ss.SSS}","level":"%-5level","logger":"%logger{36}","traceId":"%X{traceId}","msg":"%msg"}%n'
+
 management:
   endpoints:
     web:

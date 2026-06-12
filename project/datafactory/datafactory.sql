@@ -806,3 +806,16 @@ CREATE TABLE IF NOT EXISTS `node_cache` (
 
 ALTER TABLE `execution_log` ADD COLUMN `idempotency_key` VARCHAR(128) DEFAULT NULL COMMENT '幂等键: taskId_nodeId_timestamp', ADD INDEX `idx_idempotency_key` (`idempotency_key`);
 
+-- =============================================
+-- Token黑名单: 登出/禁用用户后立即失效
+-- =============================================
+CREATE TABLE IF NOT EXISTS `sys_token_blacklist` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `jti` VARCHAR(64) NOT NULL UNIQUE COMMENT 'JWT ID (jti claim)',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `expires_at` DATETIME NOT NULL COMMENT 'Token过期时间',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_jti` (`jti`),
+    INDEX `idx_expires_at` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Token黑名单表';
+

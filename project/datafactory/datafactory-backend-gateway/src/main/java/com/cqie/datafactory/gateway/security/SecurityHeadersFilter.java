@@ -19,6 +19,7 @@ public class SecurityHeadersFilter implements GlobalFilter, Ordered {
         headers.add("X-XSS-Protection", "1; mode=block");
         headers.add("Referrer-Policy", "strict-origin-when-cross-origin");
         headers.add("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+        headers.add("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'");
         headers.add("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
         headers.add("Pragma", "no-cache");
         headers.remove("Server");

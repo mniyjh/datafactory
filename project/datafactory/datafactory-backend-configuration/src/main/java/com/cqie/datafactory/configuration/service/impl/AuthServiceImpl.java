@@ -4,12 +4,15 @@ import com.cqie.datafactory.common.exception.BusinessException;
 import com.cqie.datafactory.configuration.controller.dto.LoginDTO;
 import com.cqie.datafactory.configuration.controller.vo.LoginVO;
 import com.cqie.datafactory.configuration.entity.Tenant;
+import com.cqie.datafactory.configuration.entity.TokenBlacklist;
 import com.cqie.datafactory.configuration.entity.User;
 import com.cqie.datafactory.configuration.mapper.TenantMapper;
+import com.cqie.datafactory.configuration.mapper.TokenBlacklistMapper;
 import com.cqie.datafactory.configuration.mapper.UserMapper;
 import com.cqie.datafactory.configuration.security.JwtService;
 import com.cqie.datafactory.configuration.service.AuthService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -27,6 +30,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
     private final TenantMapper tenantMapper;
+    private final TokenBlacklistMapper tokenBlacklistMapper;
 
     @Override
     public LoginVO login(LoginDTO dto) {
@@ -120,8 +124,22 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void logout(Long userId) {
-        log.info("用户 {} 已登出", userId);
-        // Token黑名单可在此扩展 (Redis)
+    public void logout(Long userId, String accessToken) {
+        if (userId == null || accessToken == null) return;
+        try {
+            Claims claims = jwtService.parseToken(accessToken);
+            String jti = claims.getId();
+            if (jti != null) {
+                TokenBlacklist bl = new TokenBlacklist();
+                bl.setJti(jti);
+                bl.setUserId(userId);
+                bl.setExpiresAt(claims.getExpiration().toInstant()
+                        .atZone(java.time.ZoneId.systemDefault()).toLocalDateTime());
+                tokenBlacklistMapper.insert(bl);
+                log.info("Token blacklisted: userId={}, jti={}", userId, jti);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to blacklist token: {}", e.getMessage());
+        }
     }
 }

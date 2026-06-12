@@ -1,5 +1,6 @@
 package com.cqie.datafactory.configuration.security;
 
+import com.cqie.datafactory.configuration.mapper.TokenBlacklistMapper;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ import java.util.*;
 public class JwtService {
 
     private final JwtProperties jwtProperties;
+    private final TokenBlacklistMapper tokenBlacklistMapper;
 
     private SecretKey getSigningKey() {
         byte[] keyBytes = jwtProperties.getSecret().getBytes(StandardCharsets.UTF_8);
@@ -70,11 +72,22 @@ public class JwtService {
                 .getPayload();
     }
 
+    /** 检查Token是否被拉黑 */
+    public boolean isBlacklisted(String token) {
+        try {
+            Claims claims = parseToken(token);
+            String jti = claims.getId();
+            return jti != null && tokenBlacklistMapper.existsByJti(jti);
+        } catch (Exception e) {
+            return true; // 解析失败视为无效
+        }
+    }
+
     /** 验证 Token 是否有效 */
     public boolean validateToken(String token) {
         try {
             parseToken(token);
-            return true;
+            return !isBlacklisted(token);
         } catch (JwtException e) {
             log.debug("JWT validation failed: {}", e.getMessage());
             return false;
