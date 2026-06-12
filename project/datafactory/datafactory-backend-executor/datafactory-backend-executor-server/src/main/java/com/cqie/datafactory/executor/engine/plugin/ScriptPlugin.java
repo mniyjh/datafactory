@@ -9,8 +9,6 @@ import com.cqie.datafactory.executor.feign.vo.ScriptExecutionVO;
 import com.cqie.datafactory.executor.grpc.GrpcPythonClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.github.resilience4j.circuitbreaker.CircuitBreaker;
-import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -33,14 +31,12 @@ public class ScriptPlugin implements ComponentPlugin {
     private final JdbcTemplate jdbcTemplate;
     private final ScriptFeignClient scriptFeignClient;
     private final GrpcPythonClient grpcClient;
-    private final CircuitBreakerRegistry cbRegistry;
 
     public ScriptPlugin(JdbcTemplate jdbcTemplate, ScriptFeignClient scriptFeignClient,
-                        GrpcPythonClient grpcClient, CircuitBreakerRegistry cbRegistry) {
+                        GrpcPythonClient grpcClient) {
         this.jdbcTemplate = jdbcTemplate;
         this.scriptFeignClient = scriptFeignClient;
         this.grpcClient = grpcClient;
-        this.cbRegistry = cbRegistry;
     }
 
     @Override
@@ -92,20 +88,14 @@ public class ScriptPlugin implements ComponentPlugin {
 
         try {
             if ("SQL".equals(scriptType)) {
-                CircuitBreaker scriptCb = cbRegistry.circuitBreaker("scriptPlugin");
                 try {
-                    return scriptCb.executeCallable(() -> {
-                        List<Map<String, Object>> rows = jdbcTemplate.queryForList(scriptContent);
-                        Map<String, Object> result = new HashMap<>();
-                        result.put("rows", rows);
-                        result.put("rowCount", rows.size());
-                        result.put("exitCode", 0);
-                        return result;
-                    });
+                    List<Map<String, Object>> rows = jdbcTemplate.queryForList(scriptContent);
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("rows", rows);
+                    result.put("rowCount", rows.size());
+                    result.put("exitCode", 0);
+                    return result;
                 } catch (Exception e) {
-                    if (scriptCb.getState() == CircuitBreaker.State.OPEN) {
-                        throw new NonTransientException("脚本执行断路器打开，请稍后重试", e);
-                    }
                     throw new TransientException("SQL脚本执行失败: " + e.getMessage(), e);
                 }
             }
@@ -137,11 +127,10 @@ public class ScriptPlugin implements ComponentPlugin {
                     grpcParams.put(entry.getKey(), Objects.toString(entry.getValue(), ""));
                 }
 
-                CircuitBreaker grpcCb = cbRegistry.circuitBreaker("grpcPython");
                 try {
-                    Map<String, Object> grpcResp = grpcCb.executeCallable(() -> grpcClient.execute(
+                    Map<String, Object> grpcResp = grpcClient.execute(
                             scriptContent, scriptType, className, methodName,
-                            grpcParams, timeoutSec, workDir, finalScriptEnvVars));
+                            grpcParams, timeoutSec, workDir, finalScriptEnvVars);
 
                     Map<String, Object> result = new HashMap<>();
                     result.put("exitCode", grpcResp.getOrDefault("exit_code", 0));
@@ -158,121 +147,112 @@ public class ScriptPlugin implements ComponentPlugin {
                     }
                     return result;
                 } catch (Exception e) {
-                    if (grpcCb.getState() == CircuitBreaker.State.OPEN) {
-                        throw new NonTransientException("gRPC Python 服务熔断，请稍后重试", e);
-                    }
                     throw new TransientException("Python 脚本执行异常(gRPC): " + e.getMessage(), e);
                 }
             }
 
             // SHELL 脚本本地子进程执行
-            CircuitBreaker scriptCb = cbRegistry.circuitBreaker("scriptPlugin");
             try {
-                return scriptCb.executeCallable(() -> {
-                    boolean isWin = System.getProperty("os.name").toLowerCase().contains("win");
-                    boolean isShell = "SHELL".equals(scriptType);
-                    String fileExt = isShell ? (isWin ? ".bat" : ".sh") : ".sh";
-                    String interpreter = isShell ? (isWin ? "cmd" : "bash") : interpreterPath;
+                boolean isWin = System.getProperty("os.name").toLowerCase().contains("win");
+                boolean isShell = "SHELL".equals(scriptType);
+                String fileExt = isShell ? (isWin ? ".bat" : ".sh") : ".sh";
+                String interpreter = isShell ? (isWin ? "cmd" : "bash") : interpreterPath;
 
-                    // Windows .bat 自动加 @echo off 避免输出回显
-                    String contentToWrite;
-                    if (isShell && isWin) {
-                        contentToWrite = "@echo off\r\nchcp 65001 >nul 2>&1\r\n" + scriptContent;
-                    } else {
-                        contentToWrite = scriptContent;
-                    }
-
-                    Path tempScript = Files.createTempFile("df-script-", fileExt);
-                    Files.writeString(tempScript, contentToWrite, StandardCharsets.UTF_8);
-
-                    ProcessBuilder pb;
-                    if (isShell && isWin) {
-                        pb = new ProcessBuilder("cmd", "/q", "/c", tempScript.toAbsolutePath().toString());
-                    } else {
-                        pb = new ProcessBuilder(interpreter, tempScript.toAbsolutePath().toString());
-                    }
-                    if (!workDir.isBlank()) pb.directory(Path.of(workDir).toFile());
-                    if (!finalScriptEnvVars.isEmpty()) pb.environment().putAll(finalScriptEnvVars);
-                    pb.redirectErrorStream(false);
-                    Process process = pb.start();
-
-                    Map<String, Object> scriptInput = new HashMap<>(
-                            context.getResolvedInputs() == null ? Collections.emptyMap() : context.getResolvedInputs());
-                    scriptInput.putAll(context.getResolvedVars());
-                    String inputJson = objectMapper.writeValueAsString(scriptInput);
-                    process.getOutputStream().write((inputJson + System.lineSeparator()).getBytes(StandardCharsets.UTF_8));
-                    process.getOutputStream().flush();
-                    process.getOutputStream().close();
-
-                    java.util.concurrent.CompletableFuture<String> stdoutFuture =
-                            java.util.concurrent.CompletableFuture.supplyAsync(() -> {
-                                try (BufferedReader br = new BufferedReader(new InputStreamReader(
-                                        process.getInputStream(), StandardCharsets.UTF_8))) {
-                                    StringBuilder sb = new StringBuilder();
-                                    long totalBytes = 0;
-                                    String line;
-                                    while ((line = br.readLine()) != null) {
-                                        long lineBytes = line.length() * 2L; // approximate UTF-16
-                                        totalBytes += lineBytes;
-                                        if (totalBytes > MAX_OUTPUT_BYTES) {
-                                            log.warn("Script output exceeded {}MB limit, truncating", MAX_OUTPUT_BYTES / 1024 / 1024);
-                                            sb.append("\n... [OUTPUT TRUNCATED: exceeded 50MB limit] ...");
-                                            process.destroyForcibly();
-                                            break;
-                                        }
-                                        if (!sb.isEmpty()) sb.append("\n");
-                                        sb.append(line);
-                                    }
-                                    return sb.toString();
-                                } catch (Exception e) {
-                                    return "";
-                                }
-                            });
-                    java.util.concurrent.CompletableFuture<String> stderrFuture =
-                            java.util.concurrent.CompletableFuture.supplyAsync(() -> {
-                                try (BufferedReader br = new BufferedReader(new InputStreamReader(
-                                        process.getErrorStream(), StandardCharsets.UTF_8))) {
-                                    StringBuilder sb = new StringBuilder();
-                                    String line;
-                                    while ((line = br.readLine()) != null) {
-                                        if (!sb.isEmpty()) sb.append("\n");
-                                        sb.append(line);
-                                    }
-                                    return sb.toString();
-                                } catch (Exception e) {
-                                    return "";
-                                }
-                            });
-
-                    boolean finished = process.waitFor(timeoutSec, TimeUnit.SECONDS);
-                    String stdout = stdoutFuture.getNow("");
-                    String stderr = stderrFuture.getNow("");
-                    if (!finished) {
-                        process.destroyForcibly();
-                        throw new BusinessException("Python脚本执行超时(" + timeoutSec + "s), stdout=" + stdout + ", stderr=" + stderr);
-                    }
-
-                    int exitCode = process.exitValue();
-                    Map<String, Object> result = new HashMap<>();
-                    result.put("exitCode", exitCode);
-                    result.put("stdout", stdout);
-                    result.put("stderr", stderr);
-                    result.put("scriptCode", finalScriptCode);
-                    try {
-                        result.put("result", objectMapper.readValue(stdout, Object.class));
-                    } catch (Exception e) {
-                        result.put("result", stdout);
-                    }
-
-                    if (exitCode != 0) {
-                        throw new BusinessException("Python脚本执行失败(exitCode=" + exitCode + "): " + stderr);
-                    }
-                    return result;
-                });
-            } catch (Exception e) {
-                if (scriptCb.getState() == CircuitBreaker.State.OPEN) {
-                    throw new NonTransientException("脚本执行断路器打开，请稍后重试", e);
+                // Windows .bat 自动加 @echo off 避免输出回显
+                String contentToWrite;
+                if (isShell && isWin) {
+                    contentToWrite = "@echo off\r\nchcp 65001 >nul 2>&1\r\n" + scriptContent;
+                } else {
+                    contentToWrite = scriptContent;
                 }
+
+                Path tempScript = Files.createTempFile("df-script-", fileExt);
+                Files.writeString(tempScript, contentToWrite, StandardCharsets.UTF_8);
+
+                ProcessBuilder pb;
+                if (isShell && isWin) {
+                    pb = new ProcessBuilder("cmd", "/q", "/c", tempScript.toAbsolutePath().toString());
+                } else {
+                    pb = new ProcessBuilder(interpreter, tempScript.toAbsolutePath().toString());
+                }
+                if (!workDir.isBlank()) pb.directory(Path.of(workDir).toFile());
+                if (!finalScriptEnvVars.isEmpty()) pb.environment().putAll(finalScriptEnvVars);
+                pb.redirectErrorStream(false);
+                Process process = pb.start();
+
+                Map<String, Object> scriptInput = new HashMap<>(
+                        context.getResolvedInputs() == null ? Collections.emptyMap() : context.getResolvedInputs());
+                scriptInput.putAll(context.getResolvedVars());
+                String inputJson = objectMapper.writeValueAsString(scriptInput);
+                process.getOutputStream().write((inputJson + System.lineSeparator()).getBytes(StandardCharsets.UTF_8));
+                process.getOutputStream().flush();
+                process.getOutputStream().close();
+
+                java.util.concurrent.CompletableFuture<String> stdoutFuture =
+                        java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                            try (BufferedReader br = new BufferedReader(new InputStreamReader(
+                                    process.getInputStream(), StandardCharsets.UTF_8))) {
+                                StringBuilder sb = new StringBuilder();
+                                long totalBytes = 0;
+                                String line;
+                                while ((line = br.readLine()) != null) {
+                                    long lineBytes = line.length() * 2L; // approximate UTF-16
+                                    totalBytes += lineBytes;
+                                    if (totalBytes > MAX_OUTPUT_BYTES) {
+                                        log.warn("Script output exceeded {}MB limit, truncating", MAX_OUTPUT_BYTES / 1024 / 1024);
+                                        sb.append("\n... [OUTPUT TRUNCATED: exceeded 50MB limit] ...");
+                                        process.destroyForcibly();
+                                        break;
+                                    }
+                                    if (!sb.isEmpty()) sb.append("\n");
+                                    sb.append(line);
+                                }
+                                return sb.toString();
+                            } catch (Exception e) {
+                                return "";
+                            }
+                        });
+                java.util.concurrent.CompletableFuture<String> stderrFuture =
+                        java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                            try (BufferedReader br = new BufferedReader(new InputStreamReader(
+                                    process.getErrorStream(), StandardCharsets.UTF_8))) {
+                                StringBuilder sb = new StringBuilder();
+                                String line;
+                                while ((line = br.readLine()) != null) {
+                                    if (!sb.isEmpty()) sb.append("\n");
+                                    sb.append(line);
+                                }
+                                return sb.toString();
+                            } catch (Exception e) {
+                                return "";
+                            }
+                        });
+
+                boolean finished = process.waitFor(timeoutSec, TimeUnit.SECONDS);
+                String stdout = stdoutFuture.getNow("");
+                String stderr = stderrFuture.getNow("");
+                if (!finished) {
+                    process.destroyForcibly();
+                    throw new BusinessException("Python脚本执行超时(" + timeoutSec + "s), stdout=" + stdout + ", stderr=" + stderr);
+                }
+
+                int exitCode = process.exitValue();
+                Map<String, Object> result = new HashMap<>();
+                result.put("exitCode", exitCode);
+                result.put("stdout", stdout);
+                result.put("stderr", stderr);
+                result.put("scriptCode", finalScriptCode);
+                try {
+                    result.put("result", objectMapper.readValue(stdout, Object.class));
+                } catch (Exception e) {
+                    result.put("result", stdout);
+                }
+
+                if (exitCode != 0) {
+                    throw new BusinessException("Python脚本执行失败(exitCode=" + exitCode + "): " + stderr);
+                }
+                return result;
+            } catch (Exception e) {
                 throw new TransientException("脚本执行异常: " + e.getMessage(), e);
             }
         } catch (BusinessException e) {

@@ -9,8 +9,6 @@ import com.cqie.datafactory.executor.feign.ScriptFeignClient;
 import com.cqie.datafactory.executor.feign.vo.DbVersionResolveVO;
 import com.cqie.datafactory.executor.feign.vo.ScriptExecutionVO;
 import com.fasterxml.jackson.databind.JsonNode;
-import io.github.resilience4j.circuitbreaker.CircuitBreaker;
-import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import lombok.extern.slf4j.Slf4j;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -27,15 +25,13 @@ public class DbPlugin implements ComponentPlugin {
     private final JdbcTemplate jdbcTemplate;
     private final DatasourceFeignClient datasourceFeignClient;
     private final ScriptFeignClient scriptFeignClient;
-    private final CircuitBreakerRegistry cbRegistry;
     private final ConcurrentHashMap<String, HikariDataSource> poolCache = new ConcurrentHashMap<>();
 
     public DbPlugin(JdbcTemplate jdbcTemplate, DatasourceFeignClient datasourceFeignClient,
-                    ScriptFeignClient scriptFeignClient, CircuitBreakerRegistry cbRegistry) {
+                    ScriptFeignClient scriptFeignClient) {
         this.jdbcTemplate = jdbcTemplate;
         this.datasourceFeignClient = datasourceFeignClient;
         this.scriptFeignClient = scriptFeignClient;
-        this.cbRegistry = cbRegistry;
     }
 
     @Override
@@ -61,24 +57,17 @@ public class DbPlugin implements ComponentPlugin {
         // 3. 替换 SQL 中的 ${param} / #{param} 占位符
         sql = resolveSqlPlaceholders(sql, context.getResolvedInputs());
 
-        // 4. Circuit Breaker 包裹实际的 JDBC 执行
+        // 4. 执行 JDBC 查询
         String finalSql = sql;
         JdbcTemplate finalExecTemplate = execTemplate;
-        CircuitBreaker cb = cbRegistry.circuitBreaker("dbPlugin");
         try {
-            return cb.executeCallable(() -> {
-                List<Map<String, Object>> rows = finalExecTemplate.queryForList(finalSql);
-                Map<String, Object> result = new HashMap<>();
-                result.put("rows", rows);
-                result.put("rowCount", rows.size());
-                result.put("environment", context.getEnvironment());
-                return result;
-            });
+            List<Map<String, Object>> rows = finalExecTemplate.queryForList(finalSql);
+            Map<String, Object> result = new HashMap<>();
+            result.put("rows", rows);
+            result.put("rowCount", rows.size());
+            result.put("environment", context.getEnvironment());
+            return result;
         } catch (Exception e) {
-            if (cb.getState() == CircuitBreaker.State.OPEN) {
-                log.error("DB circuit breaker OPEN - failing fast");
-                throw new NonTransientException("数据库服务熔断，请稍后重试", e);
-            }
             if (e.getMessage() != null && e.getMessage().contains("timeout")) {
                 throw new TransientException("数据库查询超时", e);
             }
