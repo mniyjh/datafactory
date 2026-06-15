@@ -501,8 +501,8 @@ window.addEventListener('resize', () => {
   width: 56px;
   height: 56px;
   border-radius: 28px;
-  background: linear-gradient(135deg, #1890ff 0%, #0050b3 100%);
-  box-shadow: 0 4px 16px rgba(24, 144, 255, 0.4);
+  background: linear-gradient(135deg, #111 0%, #333 100%);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -519,7 +519,7 @@ window.addEventListener('resize', () => {
 
 .floating-ball:hover {
   transform: scale(1.1);
-  box-shadow: 0 6px 20px rgba(24, 144, 255, 0.6);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
 }
 
 .floating-ball.is-minimized {
@@ -533,17 +533,17 @@ window.addEventListener('resize', () => {
 @keyframes pulse {
   0% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(24, 144, 255, 0.7);
+    box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.7);
   }
 
   70% {
     transform: scale(1.05);
-    box-shadow: 0 0 0 15px rgba(24, 144, 255, 0);
+    box-shadow: 0 0 0 15px rgba(0, 0, 0, 0);
   }
 
   100% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(24, 144, 255, 0);
+    box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
   }
 }
 
@@ -632,7 +632,7 @@ window.addEventListener('resize', () => {
 }
 
 .task-item:hover {
-  border-color: #1890ff;
+  border-color: #111;
   background: #f0f7ff;
 }
 
@@ -719,7 +719,7 @@ window.addEventListener('resize', () => {
 }
 
 .line-active {
-  background: #1890ff;
+  background: #111;
 }
 
 .step-node {
@@ -742,9 +742,9 @@ window.addEventListener('resize', () => {
 }
 
 .step-node.running .node-icon {
-  border-color: #1890ff;
-  color: #1890ff;
-  box-shadow: 0 0 8px rgba(24, 144, 255, 0.3);
+  border-color: #111;
+  color: #111;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);
 }
 
 .step-node.success .node-icon {
