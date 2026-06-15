@@ -314,3 +314,31 @@ body,
 .ant-btn-primary:hover { background: #333 !important; border-color: #333 !important; }
 .ant-tag { border-radius: 3px; }
 .ant-switch-checked { background: #111 !important; }
+
+/* 侧边栏菜单: 黑底白字 */
+.ant-menu-dark,
+.ant-menu-dark .ant-menu-sub,
+.ant-menu-dark .ant-menu-inline.ant-menu-sub {
+  background: #111 !important;
+}
+.ant-menu-dark .ant-menu-item,
+.ant-menu-dark .ant-menu-submenu-title {
+  color: rgba(255,255,255,0.85) !important;
+}
+.ant-menu-dark .ant-menu-item:hover,
+.ant-menu-dark .ant-menu-submenu-title:hover {
+  color: #fff !important;
+}
+.ant-menu-dark .ant-menu-item-selected {
+  color: #fff !important;
+  background: rgba(255,255,255,0.1) !important;
+}
+.ant-menu-dark .ant-menu-item .anticon,
+.ant-menu-dark .ant-menu-submenu-title .anticon {
+  color: rgba(255,255,255,0.65) !important;
+}
+.ant-menu-dark .ant-menu-item-selected .anticon,
+.ant-menu-dark .ant-menu-item:hover .anticon,
+.ant-menu-dark .ant-menu-submenu-title:hover .anticon {
+  color: #fff !important;
+}

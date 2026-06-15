@@ -15,12 +15,20 @@
           theme="dark"
           mode="inline"
         >
+          <!-- 首页放在最上面 -->
+          <template v-for="item in topMenuItems.filter(i => i.key === '/dashboard')" :key="item.key">
+            <a-menu-item :key="item.key" @click="go(item.key)">
+              <template #icon><component :is="item.icon" /></template>
+              {{ item.label }}
+            </a-menu-item>
+          </template>
+
           <a-sub-menu v-if="subMenuItems.length > 0" key="sub1" title="数据源管理">
             <template #icon><DatabaseOutlined /></template>
             <a-menu-item v-for="item in subMenuItems" :key="item.key" @click="go(item.key)">{{ item.label }}</a-menu-item>
           </a-sub-menu>
 
-          <a-menu-item v-for="item in topMenuItems" :key="item.key" @click="go(item.key)">
+          <a-menu-item v-for="item in topMenuItems.filter(i => i.key !== '/dashboard')" :key="item.key" @click="go(item.key)">
             <template #icon><component :is="item.icon" /></template>
             {{ item.label }}
           </a-menu-item>
