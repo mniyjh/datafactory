@@ -15,20 +15,18 @@
           theme="dark"
           mode="inline"
         >
-          <!-- 首页放在最上面 -->
-          <template v-for="item in topMenuItems.filter(i => i.key === '/dashboard')" :key="item.key">
-            <a-menu-item :key="item.key" @click="go(item.key)">
-              <template #icon><component :is="item.icon" /></template>
-              {{ item.label }}
-            </a-menu-item>
-          </template>
+          <!-- 首页 -->
+          <a-menu-item key="/dashboard" @click="go('/dashboard')">
+            <template #icon><HomeOutlined /></template>
+            首页
+          </a-menu-item>
 
           <a-sub-menu v-if="subMenuItems.length > 0" key="sub1" title="数据源管理">
             <template #icon><DatabaseOutlined /></template>
             <a-menu-item v-for="item in subMenuItems" :key="item.key" @click="go(item.key)">{{ item.label }}</a-menu-item>
           </a-sub-menu>
 
-          <a-menu-item v-for="item in topMenuItems.filter(i => i.key !== '/dashboard')" :key="item.key" @click="go(item.key)">
+          <a-menu-item v-for="item in topMenuItems" :key="item.key" @click="go(item.key)">
             <template #icon><component :is="item.icon" /></template>
             {{ item.label }}
           </a-menu-item>
@@ -134,7 +132,6 @@ const hasPerm = (perm) => !perm || authStore.hasPermission(perm);
 
 const visibleMenuItems = computed(() => {
   return [
-    { key: '/dashboard', icon: HomeOutlined, label: '首页', perm: null },
     { key: '/database', icon: DatabaseOutlined, label: '数据库管理', perm: 'datasource:read', parent: 'sub1' },
     { key: '/api-config', icon: ApiOutlined, label: '三方API管理', perm: 'datasource:read', parent: 'sub1' },
     { key: '/script', icon: CodeOutlined, label: '脚本管理', perm: 'script:read' },
