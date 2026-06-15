@@ -4,7 +4,8 @@ body,
   margin: 0;
   padding: 0;
   height: 100%;
-  background: #ececec;
+  background: #f5f5f5;
+  color: #111;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
 }
 
@@ -22,7 +23,7 @@ body,
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #001529;
+  background: #111 !important;
   transition: width 0.2s ease;
   overflow: hidden;
   position: relative;
@@ -86,19 +87,32 @@ body,
 }
 
 .sider-footer {
-  height: 36px;
-  line-height: 36px;
-  text-align: center;
-  color: #9fb3c8;
-  background: #002140;
-  cursor: pointer;
-  user-select: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 16px;
+  background: #1a1a1a;
   flex-shrink: 0;
+  border-top: 1px solid rgba(255,255,255,0.06);
 }
 
-.sider-footer:hover {
+.service-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: #9fb3c8;
+  text-decoration: none;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+.service-link:hover {
   color: #fff;
-  background: #003a70;
+  background: rgba(255,255,255,0.08);
+}
+.service-link span {
+  white-space: nowrap;
 }
 
 /* ---- 右侧页面区域 ---- */
@@ -294,3 +308,9 @@ body,
   margin-left: 8px;
   margin-right: 8px;
 }
+
+/* ========== B/W Theme Overrides ========== */
+.ant-btn-primary { background: #111 !important; border-color: #111 !important; }
+.ant-btn-primary:hover { background: #333 !important; border-color: #333 !important; }
+.ant-tag { border-radius: 3px; }
+.ant-switch-checked { background: #111 !important; }

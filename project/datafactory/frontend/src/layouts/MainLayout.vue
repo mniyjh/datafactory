@@ -1,6 +1,6 @@
 <template>
   <div class="app-shell">
-    <!-- 左侧菜单栏 — 浏览器导航条级别，始终在最上层 -->
+    <!-- 左侧菜单栏 -->
     <aside class="app-sidebar" :class="{ 'sidebar-collapsed': collapsed }">
       <div class="logo" :class="{ 'logo-collapsed': collapsed }">
         <BuildOutlined class="logo-icon" />
@@ -15,52 +15,33 @@
           theme="dark"
           mode="inline"
         >
-          <a-menu-item key="/dashboard" @click="go('/dashboard')">
-            <template #icon><component :is="menuIcon('/dashboard')" /></template>
-            首页
-          </a-menu-item>
-
-          <a-sub-menu key="sub1" title="数据源管理">
-            <template #icon><component :is="menuIcon('/database')" /></template>
-            <a-menu-item key="/database" @click="go('/database')">数据库管理</a-menu-item>
-            <a-menu-item key="/api-config" @click="go('/api-config')">三方API管理</a-menu-item>
+          <a-sub-menu v-if="subMenuItems.length > 0" key="sub1" title="数据源管理">
+            <template #icon><DatabaseOutlined /></template>
+            <a-menu-item v-for="item in subMenuItems" :key="item.key" @click="go(item.key)">{{ item.label }}</a-menu-item>
           </a-sub-menu>
 
-          <a-menu-item key="/script" @click="go('/script')">
-            <template #icon><component :is="menuIcon('/script')" /></template>
-            脚本管理
-          </a-menu-item>
-          <a-menu-item key="/task" @click="go('/task')">
-            <template #icon><component :is="menuIcon('/task')" /></template>
-            任务管理
-          </a-menu-item>
-          <a-menu-item key="/open-api" @click="go('/open-api')">
-            <template #icon><component :is="menuIcon('/open-api')" /></template>
-            开放接口
-          </a-menu-item>
-          <a-menu-item key="/component" @click="go('/component')">
-            <template #icon><component :is="menuIcon('/component')" /></template>
-            组件管理
-          </a-menu-item>
-          <a-menu-item key="/users" @click="go('/users')">
-            <template #icon><component :is="menuIcon('/users')" /></template>
-            用户管理
-          </a-menu-item>
-          <a-menu-item key="/schedule" @click="go('/schedule')">
-            <template #icon><component :is="menuIcon('/schedule')" /></template>
-            定时任务
-          </a-menu-item>
-          <a-menu-item key="/execute-log" @click="go('/execute-log')">
-            <template #icon><component :is="menuIcon('/execute-log')" /></template>
-            执行日志
+          <a-menu-item v-for="item in topMenuItems" :key="item.key" @click="go(item.key)">
+            <template #icon><component :is="item.icon" /></template>
+            {{ item.label }}
           </a-menu-item>
         </a-menu>
       </nav>
 
-      <div class="sider-footer" @click="toggleCollapse">{{ collapsed ? '▶' : '◀' }}</div>
+      <!-- 监控服务快捷入口（替换了原来的折叠按钮） -->
+      <div class="sider-footer">
+        <a class="service-link" href="http://127.0.0.1:8848/nacos" target="_blank" title="Nacos 注册中心">
+          <CloudServerOutlined /><span v-show="!collapsed">Nacos</span>
+        </a>
+        <a class="service-link" href="http://127.0.0.1:9090" target="_blank" title="Prometheus 监控">
+          <DashboardOutlined /><span v-show="!collapsed">Prometheus</span>
+        </a>
+        <a class="service-link" href="http://127.0.0.1:3001" target="_blank" title="Grafana 图表">
+          <LineChartOutlined /><span v-show="!collapsed">Grafana</span>
+        </a>
+      </div>
     </aside>
 
-    <!-- 右侧页面区域 — 独立滚动容器 -->
+    <!-- 右侧页面区域 -->
     <div class="app-main">
       <header class="app-header">
         <span class="menu-mark" @click="toggleCollapse">
@@ -108,12 +89,12 @@
     </div>
 
     <!-- 全局执行监控悬浮球 -->
-    <ExecutionMonitorBall />
+    <ExecutionMonitorBall v-if="hasPerm('task:execute') || hasPerm('task:read')" />
   </div>
 </template>
 
 <script setup>
-import { computed, h, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
 import ExecutionMonitorBall from '../components/ExecutionMonitorBall.vue';
@@ -128,37 +109,42 @@ import {
   LinkOutlined,
   FileTextOutlined,
   AppstoreOutlined,
-  TeamOutlined,
   ClockCircleOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   BuildOutlined,
-  UserOutlined
+  UserOutlined,
+  CloudServerOutlined,
+  DashboardOutlined,
+  LineChartOutlined
 } from '@ant-design/icons-vue';
 
 const route = useRoute();
 const router = useRouter();
 
+const hasPerm = (perm) => !perm || authStore.hasPermission(perm);
+
+const visibleMenuItems = computed(() => {
+  return [
+    { key: '/dashboard', icon: HomeOutlined, label: '首页', perm: null },
+    { key: '/database', icon: DatabaseOutlined, label: '数据库管理', perm: 'datasource:read', parent: 'sub1' },
+    { key: '/api-config', icon: ApiOutlined, label: '三方API管理', perm: 'datasource:read', parent: 'sub1' },
+    { key: '/script', icon: CodeOutlined, label: '脚本管理', perm: 'script:read' },
+    { key: '/task', icon: ProfileOutlined, label: '任务管理', perm: 'task:read' },
+    { key: '/open-api', icon: LinkOutlined, label: '开放接口', perm: 'datasource:write' },
+    { key: '/component', icon: AppstoreOutlined, label: '组件管理', perm: 'task:write' },
+    { key: '/schedule', icon: ClockCircleOutlined, label: '定时任务', perm: 'schedule:read' },
+    { key: '/execute-log', icon: FileTextOutlined, label: '执行日志', perm: 'log:read' },
+  ].filter(item => !item.perm || hasPerm(item.perm));
+});
+
+const subMenuItems = computed(() => visibleMenuItems.value.filter(i => i.parent === 'sub1'));
+const topMenuItems = computed(() => visibleMenuItems.value.filter(i => !i.parent));
+
 const collapsed = ref(false);
 const openKeys = ref(['sub1']);
 const selectedKeys = computed(() => [route.path]);
 
-const iconMap = {
-  '/dashboard': HomeOutlined,
-  '/database': DatabaseOutlined,
-  '/api-config': ApiOutlined,
-  '/script': CodeOutlined,
-  '/task': ProfileOutlined,
-  '/open-api': LinkOutlined,
-  '/component': AppstoreOutlined,
-  '/users': TeamOutlined,
-  '/schedule': ClockCircleOutlined,
-  '/execute-log': FileTextOutlined
-};
-
-const menuIcon = (path) => h(iconMap[path]);
-
-const go = (path) => router.push(path);
 const toggleCollapse = () => {
   collapsed.value = !collapsed.value;
 };
@@ -171,7 +157,10 @@ watch(collapsed, (val) => {
   }
 });
 
+const go = (path) => router.push(path);
+
 const titleMap = {
+  '/profile': '个人中心',
   '/dashboard': '首页',
   '/database': '数据库管理',
   '/api-config': '三方API管理',
@@ -197,7 +186,7 @@ const handleLogout = async () => {
 };
 
 const goProfile = () => {
-  message.info('个人中心功能开发中');
+  router.push('/profile');
 };
 
 const handleTenantChange = (tenantId) => {

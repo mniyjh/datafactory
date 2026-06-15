@@ -196,6 +196,13 @@ const handleMouseDown = (e) => {
 
 const toggleMinimize = () => {
   isMinimized.value = !isMinimized.value;
+
+  // 切换大小后默认吸附到页面右下角
+  ballPos.value = {
+    x: window.innerWidth - 80,
+    y: window.innerHeight - 80
+  };
+
   if (!isMinimized.value) {
     if (executionStore.activeExecutions.length > 0) {
       viewMode.value = 'monitor';
@@ -473,14 +480,10 @@ onMounted(() => {
   }
 });
 
-// 监听窗口大小变化，防止球跑出屏幕
+// 窗口缩放后重新吸附右下角，避免球漂到页面中间
 window.addEventListener('resize', () => {
-  if (ballPos.value.x > window.innerWidth - 60) {
-    ballPos.value.x = window.innerWidth - 80;
-  }
-  if (ballPos.value.y > window.innerHeight - 60) {
-    ballPos.value.y = window.innerHeight - 80;
-  }
+  ballPos.value.x = window.innerWidth - 80;
+  ballPos.value.y = window.innerHeight - 80;
 });
 </script>
 

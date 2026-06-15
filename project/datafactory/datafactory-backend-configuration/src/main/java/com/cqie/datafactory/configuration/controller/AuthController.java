@@ -1,6 +1,7 @@
 package com.cqie.datafactory.configuration.controller;
 
 import com.cqie.datafactory.common.result.Result;
+import com.cqie.datafactory.configuration.controller.dto.ForgotPasswordDTO;
 import com.cqie.datafactory.configuration.controller.dto.LoginDTO;
 import com.cqie.datafactory.configuration.controller.vo.LoginVO;
 import com.cqie.datafactory.configuration.service.AuthService;
@@ -42,6 +43,20 @@ public class AuthController {
             accessToken = authHeader.substring(7);
         }
         authService.logout(userId, accessToken);
+        return Result.success();
+    }
+
+    @Operation(summary = "发送密码重置验证码")
+    @PostMapping("/forgot-password/send-code")
+    public Result<Void> sendVerificationCode(@Valid @RequestBody ForgotPasswordDTO.SendCodeRequest req) {
+        authService.sendVerificationCode(req.getUsername(), req.getEmail());
+        return Result.success();
+    }
+
+    @Operation(summary = "重置密码")
+    @PostMapping("/forgot-password/reset")
+    public Result<Void> resetPassword(@Valid @RequestBody ForgotPasswordDTO.ResetRequest req) {
+        authService.resetPassword(req.getUsername(), req.getEmail(), req.getCode());
         return Result.success();
     }
 }

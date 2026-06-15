@@ -22,6 +22,21 @@ spring:
       prepStmtCacheSize: 250
       prepStmtCacheSqlLimit: 2048
       leak-detection-threshold: 2000
+  mail:
+    host: smtp.qq.com
+    port: 465
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    protocol: smtps
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          starttls:
+            enable: true
+            required: true
   cloud:
     nacos:
       server-addr: 127.0.0.1:8848

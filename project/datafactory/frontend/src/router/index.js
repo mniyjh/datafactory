@@ -11,12 +11,18 @@ const OpenApiPage = () => import('../views/OpenApiPage.vue');
 const ExecuteLogPage = () => import('../views/ExecuteLogPage.vue');
 const ComponentPage = () => import('../views/ComponentPage.vue');
 const SchedulePage = () => import('../views/SchedulePage.vue');
-const LoginPage = () => import('../views/LoginPage.vue');
-const UserPage = () => import('../views/UserPage.vue');
+const LoginPage = () => import('../views/AnimatedLogin.vue');
+const ForgotPasswordPage = () => import('../views/ForgotPassword.vue');
+const ProfilePage = () => import('../views/ProfilePage.vue');
+const UserPage = () => import('../views/ProfilePage.vue');  // 用户管理已整合到个人中心
 
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
+    {
+      path: '/forgot-password',
+      component: ForgotPasswordPage
+    },
     {
       path: '/login',
       component: LoginPage
@@ -33,6 +39,7 @@ const router = createRouter({
         { path: 'task', component: TaskPage },
         { path: 'open-api', component: OpenApiPage },
         { path: 'component', component: ComponentPage },
+        { path: 'profile', component: ProfilePage },
         { path: 'users', component: UserPage },
         { path: 'schedule', component: SchedulePage },
         { path: 'execute-log', component: ExecuteLogPage }

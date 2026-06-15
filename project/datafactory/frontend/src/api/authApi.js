@@ -11,3 +11,10 @@ export function refreshToken(token) {
 export function logout() {
   return api.post('/auth/logout');
 }
+
+export function sendVerificationCode(username, email) {
+  return api.post('/auth/forgot-password/send-code', { username, email });
+}
+export function resetPassword(username, email, code) {
+  return api.post('/auth/forgot-password/reset', { username, email, code });
+}

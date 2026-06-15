@@ -19,6 +19,7 @@ import com.cqie.datafactory.configuration.mapper.UserRoleMapper;
 import com.cqie.datafactory.configuration.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -102,6 +103,15 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserVO update(Long id, UserUpdateDTO dto) {
+        Long selfId = getCurrentUserId();
+        if (selfId != null && selfId.equals(id)) {
+            throw new BusinessException("不能操作自己的账户");
+        }
+        // 不能修改自己的状态
+        if (dto.getStatus() != null && selfId != null && selfId.equals(id)) {
+            throw new BusinessException("不能修改自己的状态");
+        }
+
         User user = userMapper.selectById(id);
         if (user == null) {
             throw new BusinessException("用户不存在");
@@ -132,6 +142,11 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public void delete(Long id) {
+        Long selfId = getCurrentUserId();
+        if (selfId != null && selfId.equals(id)) {
+            throw new BusinessException("不能删除自己的账户");
+        }
+
         User user = userMapper.selectById(id);
         if (user == null) {
             throw new BusinessException("用户不存在");
@@ -169,6 +184,14 @@ public class UserServiceImpl implements UserService {
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
         userMapper.updateById(user);
         log.info("用户 {} 修改了密码", user.getUsername());
+    }
+
+    private Long getCurrentUserId() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getDetails() instanceof Long) {
+            return (Long) auth.getDetails();
+        }
+        return null;
     }
 
     private void assignRoles(Long userId, List<Long> roleIds) {

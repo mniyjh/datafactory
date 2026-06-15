@@ -11,6 +11,8 @@ import com.cqie.datafactory.configuration.mapper.TokenBlacklistMapper;
 import com.cqie.datafactory.configuration.mapper.UserMapper;
 import com.cqie.datafactory.configuration.security.JwtService;
 import com.cqie.datafactory.configuration.service.AuthService;
+import com.cqie.datafactory.configuration.service.EmailService;
+import com.cqie.datafactory.configuration.service.VerificationCodeManager;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +33,8 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final TenantMapper tenantMapper;
     private final TokenBlacklistMapper tokenBlacklistMapper;
+    private final EmailService emailService;
+    private final VerificationCodeManager codeManager;
 
     @Override
     public LoginVO login(LoginDTO dto) {
@@ -59,8 +63,10 @@ public class AuthServiceImpl implements AuthService {
                 LoginVO.TenantInfo.builder().id(t.getId()).name(t.getName()).code(t.getCode()).build()
         ).collect(Collectors.toList());
 
+        List<Long> tenantIds = tenants.stream().map(Tenant::getId).collect(Collectors.toList());
+
         String accessToken = jwtService.generateAccessToken(
-                user.getId(), user.getUsername(), roles, permissions);
+                user.getId(), user.getUsername(), roles, permissions, tenantIds);
         String refreshToken = jwtService.generateRefreshToken(user.getId());
 
         log.info("用户 {} 登录成功, 角色: {}, 权限数: {}, 租户数: {}", user.getUsername(), roles, permissions.size(), tenantInfos.size());
@@ -104,8 +110,14 @@ public class AuthServiceImpl implements AuthService {
         List<String> roles = userMapper.selectRoleCodesByUserId(userId);
         List<String> permissions = userMapper.selectPermissionsByUserId(userId);
 
+        List<Tenant> tenants = tenantMapper.selectByUserId(userId);
+        List<Long> tenantIds = tenants.stream().map(Tenant::getId).collect(Collectors.toList());
+        List<LoginVO.TenantInfo> tenantInfos = tenants.stream().map(t ->
+                LoginVO.TenantInfo.builder().id(t.getId()).name(t.getName()).code(t.getCode()).build()
+        ).collect(Collectors.toList());
+
         String newAccessToken = jwtService.generateAccessToken(
-                userId, user.getUsername(), roles, permissions);
+                userId, user.getUsername(), roles, permissions, tenantIds);
 
         return LoginVO.builder()
                 .accessToken(newAccessToken)
@@ -119,6 +131,7 @@ public class AuthServiceImpl implements AuthService {
                         .email(user.getEmail())
                         .roles(roles)
                         .permissions(permissions)
+                        .tenants(tenantInfos)
                         .build())
                 .build();
     }
@@ -141,5 +154,42 @@ public class AuthServiceImpl implements AuthService {
         } catch (Exception e) {
             log.warn("Failed to blacklist token: {}", e.getMessage());
         }
+    }
+
+    @Override
+    public void sendVerificationCode(String username, String email) {
+        User user = userMapper.selectOne(
+            new LambdaQueryWrapper<User>().eq(User::getUsername, username)
+        );
+        if (user == null) {
+            throw new BusinessException("用户名不存在");
+        }
+        if (!email.equals(user.getEmail())) {
+            throw new BusinessException("用户名与邮箱不匹配");
+        }
+        List<String> roles = userMapper.selectRoleCodesByUserId(user.getId());
+        if (roles.contains("super_admin")) {
+            throw new BusinessException("超级管理员不能使用忘记密码功能");
+        }
+        String code = codeManager.generate(username + ":" + email);
+        emailService.sendVerificationCode(email, code);
+        log.info("Verification code sent to user {} at {}", username, email);
+    }
+
+    @Override
+    public void resetPassword(String username, String email, String code) {
+        User user = userMapper.selectOne(
+            new LambdaQueryWrapper<User>().eq(User::getUsername, username)
+        );
+        if (user == null) {
+            throw new BusinessException("用户名不存在");
+        }
+        if (!codeManager.verify(username + ":" + email, code)) {
+            throw new BusinessException("验证码错误或已过期");
+        }
+        String encodedPwd = passwordEncoder.encode("123456");
+        user.setPassword(encodedPwd);
+        userMapper.updateById(user);
+        log.info("Password reset for user {}", username);
     }
 }
