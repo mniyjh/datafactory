@@ -1,12 +1,10 @@
 @echo off
 title DataFactory — 一键启动
-setlocal enabledelayedexpansion
 
-REM 切换到项目根目录
-pushd "%~dp0.."
+REM 切换到脚本所在目录的上级（项目根目录）
+cd /d "%~dp0"
+cd ..
 set "ROOT=%cd%"
-popd
-cd /d "%ROOT%"
 
 echo.
 echo ============================================
@@ -20,23 +18,25 @@ echo [0/5] Checking environment...
 where java >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] Java not found. Install JDK 21+
-    pause & exit /b 1
+    pause
+    exit /b 1
 )
-java -version 2>&1 | findstr /i "version"
+for /f "tokens=3" %%v in ('java -version 2^>^&1 ^| findstr /i "version"') do echo   Java: %%v
 
 where node >nul 2>&1
 if errorlevel 1 (
     echo   Node: NOT FOUND - frontend skipped
     set "HAS_NODE=0"
 ) else (
-    node -v
+    for /f "delims=" %%v in ('node -v') do echo   Node: %%v
     set "HAS_NODE=1"
 )
 
 REM ─── 检查 JAR ───
 if not exist "%ROOT%\datafactory-backend-gateway\target\datafactory-backend-gateway-1.0.0-SNAPSHOT.jar" (
-    echo [ERROR] JAR files missing. Run: mvn package -DskipTests
-    pause & exit /b 1
+    echo [ERROR] JAR missing. Run: mvn package -DskipTests
+    pause
+    exit /b 1
 )
 echo   JARs: OK
 echo.
@@ -84,8 +84,8 @@ if "%HAS_NODE%"=="1" (
 echo.
 echo ============================================
 echo   Done!
+echo ============================================
 echo   Gateway:  http://127.0.0.1:8080
 echo   Frontend: http://localhost:5173
-echo ============================================
 echo.
 pause
