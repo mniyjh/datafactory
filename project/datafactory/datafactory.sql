@@ -766,13 +766,28 @@ INSERT INTO sys_user_role (user_id, role_id)
 SELECT (SELECT id FROM sys_user WHERE username = 'admin'), (SELECT id FROM sys_role WHERE code = 'super_admin');
 
 -- =============================================
--- 初始化: 默认租户 + admin 绑定
+-- 初始化: 其他角色用户 (密码: 123456)
+-- =============================================
+INSERT INTO sys_user (username, password, real_name, email, phone, status, created_by) VALUES
+('developer', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '数据开发工程师', 'dev@datafactory.dev', '13800000001', 1, 'admin'),
+('operator',  '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '运维工程师',     'ops@datafactory.dev', '13800000002', 1, 'admin');
+
+-- developer 分配 developer 角色
+INSERT INTO sys_user_role (user_id, role_id)
+SELECT (SELECT id FROM sys_user WHERE username = 'developer'), (SELECT id FROM sys_role WHERE code = 'developer');
+
+-- operator 分配 operator 角色
+INSERT INTO sys_user_role (user_id, role_id)
+SELECT (SELECT id FROM sys_user WHERE username = 'operator'), (SELECT id FROM sys_role WHERE code = 'operator');
+
+-- =============================================
+-- 初始化: 默认租户 + 所有用户绑定
 -- =============================================
 INSERT INTO sys_tenant (id, name, code, description, status) VALUES
 (1, '默认租户', 'default', '系统默认租户', 1);
 
 INSERT INTO sys_user_tenant (user_id, tenant_id)
-SELECT (SELECT id FROM sys_user WHERE username = 'admin'), 1;
+SELECT id, 1 FROM sys_user WHERE username IN ('admin', 'developer', 'operator');
 
 -- =============================================
 -- 初始化: 系统内置组件数据
