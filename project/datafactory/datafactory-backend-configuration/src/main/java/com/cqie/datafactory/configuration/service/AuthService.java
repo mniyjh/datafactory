@@ -9,4 +9,5 @@ public interface AuthService {
     void logout(Long userId, String accessToken);
     void sendVerificationCode(String username, String email);
     void resetPassword(String username, String email, String code);
+    boolean canUseForgotPassword(String username);
 }

@@ -106,7 +106,7 @@ public class TaskDslController {
 
     @GetMapping("/{taskId}/outdatedNodes")
     @PreAuthorize("hasAuthority('task:read')")
-    public Result<String> outdatedNodes(@PathVariable("taskId") Long taskId, @RequestParam("environment") String environment) {
+    public Result<List<String>> outdatedNodes(@PathVariable("taskId") Long taskId, @RequestParam("environment") String environment) {
         return Result.success(taskDslService.outdatedNodes(taskId, environment));
     }
 

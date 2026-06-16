@@ -41,8 +41,11 @@
 
 <script setup>
 import { ref, reactive } from 'vue';
+import { useRouter } from 'vue-router';
 import { sendVerificationCode, resetPassword } from '../api/authApi';
 import { message } from 'ant-design-vue';
+
+const router = useRouter();
 
 const formRef = ref();
 const step = ref(1);
@@ -77,8 +80,8 @@ async function doReset() {
   resetting.value = true; errorMsg.value = '';
   try {
     await resetPassword(form.username, form.email, form.code);
-    successMsg.value = '密码已重置为 123456，请返回登录修改密码';
-    step.value = 1; form.code = '';
+    message.success('密码已重置为 123456');
+    setTimeout(() => router.replace('/login'), 800);
   } catch (e) { errorMsg.value = e.message || '重置失败'; }
   finally { resetting.value = false; }
 }

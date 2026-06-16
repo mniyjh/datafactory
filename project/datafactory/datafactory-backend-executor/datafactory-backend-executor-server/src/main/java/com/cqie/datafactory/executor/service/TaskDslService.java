@@ -30,5 +30,5 @@ public interface TaskDslService extends IService<TaskDslEntity> {
 
     void setCurrent(Long versionId);
 
-    String outdatedNodes(Long taskId, String environment);
+    List<String> outdatedNodes(Long taskId, String environment);
 }

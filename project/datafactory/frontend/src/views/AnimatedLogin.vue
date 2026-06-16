@@ -96,7 +96,7 @@
           </a-form-item>
         </a-form>
 
-        <div class="fp-link">
+        <div v-if="showForgotPassword" class="fp-link">
           <router-link to="/forgot-password">忘记密码？</router-link>
         </div>
       </div>
@@ -105,11 +105,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, reactive, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
 import gsap from 'gsap';
-import { login } from '../api/authApi';
+import { login, checkForgotPasswordAvailable } from '../api/authApi';
 import { authStore } from '../store/auth';
 
 const router = useRouter();
@@ -120,6 +120,8 @@ const showPassword = ref(false);
 const form = reactive({ username: '', password: '' });
 const passwordLength = ref(0);
 const isTyping = ref(false);
+const showForgotPassword = ref(true);
+let checkTimer = null;
 
 const rules = {
   username: [{ required: true, message: '请输入用户名' }],
@@ -321,6 +323,21 @@ async function handleLogin() {
     errorMsg.value = e.message || '账号或密码有误，请重新输入';
   } finally { loading.value = false; }
 }
+
+// ═══ 用户名变更时检查是否超级管理员，控制忘记密码入口 ═══
+watch(() => form.username, (val) => {
+  clearTimeout(checkTimer);
+  showForgotPassword.value = true; // 默认显示
+  if (!val || val.trim().length === 0) return;
+  checkTimer = setTimeout(async () => {
+    try {
+      const res = await checkForgotPasswordAvailable(val.trim());
+      showForgotPassword.value = res.data !== false;
+    } catch {
+      showForgotPassword.value = true; // 接口异常时保守显示
+    }
+  }, 500);
+});
 
 // ═══ Lifecycle ═══
 onMounted(() => nextTick(() => {

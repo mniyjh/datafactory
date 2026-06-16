@@ -9,6 +9,22 @@ const http = axios.create({
   timeout: 60000
 });
 
+// Request interceptor: attach JWT token + tenant ID
+http.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    const tenantId = localStorage.getItem('tenantId');
+    if (tenantId) {
+      config.headers['X-Tenant-Id'] = tenantId;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 http.interceptors.response.use(
   (res) => {
     // 拦截业务异常（code !== 0）
@@ -18,6 +34,12 @@ http.interceptors.response.use(
     return res;
   },
   (error) => {
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('userInfo');
+      window.location.hash = '#/login';
+    }
     const msg = error?.response?.data?.message || error?.message || '请求失败';
     return Promise.reject(new Error(msg));
   }

@@ -1,0 +1,355 @@
+{
+  "schemaVersion": 3,
+  "viewport": {
+    "scale": 0.8,
+    "pan": {"x": 0, "y": 0}
+  },
+  "nodes": [
+    {
+      "id": "n_start",
+      "name": "开始节点",
+      "type": "START",
+      "componentCode": "COMP_START",
+      "componentId": 1,
+      "x": 100, "y": 300,
+      "fieldValues": {},
+      "inputParams": [
+        {
+          "paramCode": "city",
+          "paramName": "城市名称",
+          "dataType": "STRING",
+          "sourceType": "CONST",
+          "sourceValue": "Beijing",
+          "requiredFlag": 1,
+          "paramSpace": "TASK"
+        }
+      ],
+      "outputParams": [
+        {
+          "paramCode": "city",
+          "paramName": "城市名称",
+          "dataType": "STRING",
+          "sourceType": "CONST",
+          "sourceValue": "",
+          "requiredFlag": 0
+        }
+      ]
+    },
+    {
+      "id": "n_api",
+      "name": "获取天气数据",
+      "type": "数据处理",
+      "componentCode": "COMP_API_CALL",
+      "componentId": 4,
+      "x": 350, "y": 200,
+      "fieldValues": {
+        "apiCode": "WEATHER_API",
+        "url": "https://wttr.in/${city}?format=j1",
+        "method": "GET",
+        "headers": "{\"Accept\":\"application/json\"}",
+        "body": "",
+        "result_var": "weather_raw"
+      },
+      "inputParams": [
+        {
+          "paramCode": "city",
+          "paramName": "城市名称",
+          "dataType": "STRING",
+          "sourceType": "UPSTREAM_OUTPUT",
+          "sourceValue": "{\"nodeId\":\"n_start\",\"paramCode\":\"city\"}",
+          "requiredFlag": 1,
+          "paramSpace": "NODE"
+        }
+      ],
+      "outputParams": [
+        {
+          "paramCode": "weather_raw",
+          "paramName": "原始天气数据",
+          "dataType": "STRING",
+          "sourceType": "CONST",
+          "sourceValue": "",
+          "requiredFlag": 0
+        }
+      ]
+    },
+    {
+      "id": "n_filter",
+      "name": "数据过滤清洗",
+      "type": "数据处理",
+      "componentCode": "COMP_FILTER",
+      "componentId": 6,
+      "x": 600, "y": 200,
+      "fieldValues": {
+        "filterMode": "COLUMN",
+        "sourceNodeId": "n_api",
+        "columns": "weather_raw",
+        "condition_field": "",
+        "condition_op": "",
+        "condition_value": "",
+        "expression": "",
+        "result_var": ""
+      },
+      "inputParams": [
+        {
+          "paramCode": "weather_raw",
+          "paramName": "原始天气数据",
+          "dataType": "STRING",
+          "sourceType": "UPSTREAM_OUTPUT",
+          "sourceValue": "{\"nodeId\":\"n_api\",\"paramCode\":\"weather_raw\"}",
+          "requiredFlag": 1,
+          "paramSpace": "NODE"
+        }
+      ],
+      "outputParams": [
+        {
+          "paramCode": "weather_raw",
+          "paramName": "过滤后天气数据",
+          "dataType": "STRING",
+          "sourceType": "CONST",
+          "sourceValue": "",
+          "requiredFlag": 0
+        }
+      ]
+    },
+    {
+      "id": "n_python",
+      "name": "天气数据分析",
+      "type": "数据处理",
+      "componentCode": "COMP_PYTHON_EXECUTOR",
+      "componentId": 5,
+      "x": 850, "y": 200,
+      "fieldValues": {
+        "scriptCode": "PY_WEATHER_ANALYZE",
+        "result_var": "analysis_result",
+        "className": "",
+        "methodName": ""
+      },
+      "inputParams": [
+        {
+          "paramCode": "weather_raw",
+          "paramName": "天气数据",
+          "dataType": "STRING",
+          "sourceType": "UPSTREAM_OUTPUT",
+          "sourceValue": "{\"nodeId\":\"n_filter\",\"paramCode\":\"weather_raw\"}",
+          "requiredFlag": 1,
+          "paramSpace": "NODE"
+        }
+      ],
+      "outputParams": [
+        {
+          "paramCode": "analysis_result",
+          "paramName": "分析结果JSON",
+          "dataType": "STRING",
+          "sourceType": "CONST",
+          "sourceValue": "",
+          "requiredFlag": 0
+        }
+      ]
+    },
+    {
+      "id": "n_db",
+      "name": "查询历史记录",
+      "type": "数据接入",
+      "componentCode": "COMP_DB_QUERY",
+      "componentId": 3,
+      "x": 850, "y": 400,
+      "fieldValues": {
+        "scriptCode": "SQL_TRAVEL_HISTORY",
+        "datasource": "TRAVEL_DB",
+        "result_var": "history_data"
+      },
+      "inputParams": [
+        {
+          "paramCode": "city",
+          "paramName": "城市名称",
+          "dataType": "STRING",
+          "sourceType": "UPSTREAM_OUTPUT",
+          "sourceValue": "{\"nodeId\":\"n_start\",\"paramCode\":\"city\"}",
+          "requiredFlag": 1,
+          "paramSpace": "NODE"
+        }
+      ],
+      "outputParams": [
+        {
+          "paramCode": "history_data",
+          "paramName": "历史出行记录",
+          "dataType": "ARRAY",
+          "sourceType": "CONST",
+          "sourceValue": "",
+          "requiredFlag": 0
+        }
+      ]
+    },
+    {
+      "id": "n_branch",
+      "name": "判断是否适合出游",
+      "type": "流程控制",
+      "componentCode": "COMP_BRANCH",
+      "componentId": 7,
+      "x": 1100, "y": 250,
+      "fieldValues": {
+        "branches": "[{\"expression\":\"${analysis_result.综合评分} >= 60\",\"label\":\"适合出游\"},{\"expression\":\"${analysis_result.综合评分} < 60\",\"label\":\"不适合出游\"}]",
+        "targetNodeIds": "[]"
+      },
+      "inputParams": [
+        {
+          "paramCode": "analysis_result",
+          "paramName": "分析结果",
+          "dataType": "STRING",
+          "sourceType": "UPSTREAM_OUTPUT",
+          "sourceValue": "{\"nodeId\":\"n_python\",\"paramCode\":\"analysis_result\"}",
+          "requiredFlag": 1,
+          "paramSpace": "NODE"
+        }
+      ],
+      "outputParams": []
+    },
+    {
+      "id": "n_shell",
+      "name": "生成出行通知",
+      "type": "数据处理",
+      "componentCode": "COMP_SHELL_EXECUTOR",
+      "componentId": 9,
+      "x": 1350, "y": 120,
+      "fieldValues": {
+        "scriptCode": "SH_TRAVEL_NOTIFY",
+        "result_var": "notify_result"
+      },
+      "inputParams": [
+        {
+          "paramCode": "city",
+          "paramName": "城市名称",
+          "dataType": "STRING",
+          "sourceType": "UPSTREAM_OUTPUT",
+          "sourceValue": "{\"nodeId\":\"n_start\",\"paramCode\":\"city\"}",
+          "requiredFlag": 1,
+          "paramSpace": "NODE"
+        },
+        {
+          "paramCode": "score",
+          "paramName": "综合评分",
+          "dataType": "STRING",
+          "sourceType": "UPSTREAM_OUTPUT",
+          "sourceValue": "{\"nodeId\":\"n_python\",\"paramCode\":\"analysis_result\"}",
+          "requiredFlag": 1,
+          "paramSpace": "NODE"
+        }
+      ],
+      "outputParams": [
+        {
+          "paramCode": "notify_result",
+          "paramName": "通知生成结果",
+          "dataType": "STRING",
+          "sourceType": "CONST",
+          "sourceValue": "",
+          "requiredFlag": 0
+        }
+      ]
+    },
+    {
+      "id": "n_subtask",
+      "name": "室内活动推荐",
+      "type": "流程控制",
+      "componentCode": "COMP_SUB_TASK",
+      "componentId": 8,
+      "x": 1350, "y": 380,
+      "fieldValues": {
+        "subTaskId": "INDOOR_PLAN",
+        "result_var": "indoor_plan"
+      },
+      "inputParams": [
+        {
+          "paramCode": "city",
+          "paramName": "城市名称",
+          "dataType": "STRING",
+          "sourceType": "UPSTREAM_OUTPUT",
+          "sourceValue": "{\"nodeId\":\"n_start\",\"paramCode\":\"city\"}",
+          "requiredFlag": 1,
+          "paramSpace": "NODE"
+        }
+      ],
+      "outputParams": [
+        {
+          "paramCode": "indoor_plan",
+          "paramName": "室内活动方案",
+          "dataType": "STRING",
+          "sourceType": "CONST",
+          "sourceValue": "",
+          "requiredFlag": 0
+        }
+      ]
+    },
+    {
+      "id": "n_end",
+      "name": "结束节点",
+      "type": "END",
+      "componentCode": "COMP_END",
+      "componentId": 2,
+      "x": 1600, "y": 250,
+      "fieldValues": {},
+      "inputParams": [],
+      "outputParams": [
+        {
+          "paramCode": "city",
+          "paramName": "城市名称",
+          "dataType": "STRING",
+          "sourceType": "CONST",
+          "sourceValue": "",
+          "requiredFlag": 0
+        },
+        {
+          "paramCode": "weather_raw",
+          "paramName": "原始天气数据",
+          "dataType": "STRING",
+          "sourceType": "CONST",
+          "sourceValue": "",
+          "requiredFlag": 0
+        },
+        {
+          "paramCode": "analysis_result",
+          "paramName": "天气分析结果",
+          "dataType": "STRING",
+          "sourceType": "CONST",
+          "sourceValue": "",
+          "requiredFlag": 0
+        },
+        {
+          "paramCode": "history_data",
+          "paramName": "历史出行记录",
+          "dataType": "ARRAY",
+          "sourceType": "CONST",
+          "sourceValue": "",
+          "requiredFlag": 0
+        },
+        {
+          "paramCode": "final_suggestion",
+          "paramName": "最终建议",
+          "dataType": "STRING",
+          "sourceType": "CONST",
+          "sourceValue": "",
+          "requiredFlag": 0
+        },
+        {
+          "paramCode": "notify_file",
+          "paramName": "通知文件路径",
+          "dataType": "STRING",
+          "sourceType": "CONST",
+          "sourceValue": "",
+          "requiredFlag": 0
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {"id": "e_start_api",     "source": {"nodeId": "n_start",  "port": "out"},   "target": {"nodeId": "n_api",     "port": "in"}},
+    {"id": "e_api_filter",    "source": {"nodeId": "n_api",    "port": "out"},   "target": {"nodeId": "n_filter",  "port": "in"}},
+    {"id": "e_filter_python", "source": {"nodeId": "n_filter", "port": "out"},   "target": {"nodeId": "n_python",  "port": "in"}},
+    {"id": "e_python_branch", "source": {"nodeId": "n_python", "port": "out"},   "target": {"nodeId": "n_branch",  "port": "in"}},
+    {"id": "e_start_db",      "source": {"nodeId": "n_start",  "port": "out"},   "target": {"nodeId": "n_db",      "port": "in"}},
+    {"id": "e_db_branch",     "source": {"nodeId": "n_db",     "port": "out"},   "target": {"nodeId": "n_branch",  "port": "in"}},
+    {"id": "e_branch_shell",  "source": {"nodeId": "n_branch", "port": "out_0"}, "target": {"nodeId": "n_shell",   "port": "in"}},
+    {"id": "e_branch_subtask","source": {"nodeId": "n_branch", "port": "out_1"}, "target": {"nodeId": "n_subtask", "port": "in"}},
+    {"id": "e_shell_end",     "source": {"nodeId": "n_shell",  "port": "out"},   "target": {"nodeId": "n_end",     "port": "in"}},
+    {"id": "e_subtask_end",   "source": {"nodeId": "n_subtask","port": "out"},   "target": {"nodeId": "n_end",     "port": "in"}}
+  ]
+}

@@ -18,3 +18,6 @@ export function sendVerificationCode(username, email) {
 export function resetPassword(username, email, code) {
   return api.post('/auth/forgot-password/reset', { username, email, code });
 }
+export function checkForgotPasswordAvailable(username) {
+  return api.get('/auth/forgot-password/check', { params: { username } });
+}

@@ -192,7 +192,7 @@ public class TaskDslServiceImpl extends ServiceImpl<TaskDslMapper, TaskDslEntity
     }
 
     @Override
-    public String outdatedNodes(Long taskId, String environment) {
+    public List<String> outdatedNodes(Long taskId, String environment) {
         // 根据DSL版本ID查询node_instance表中sync_status=1的节点
         String sql = """
             SELECT DISTINCT ni.node_id FROM node_instance ni
@@ -200,8 +200,7 @@ public class TaskDslServiceImpl extends ServiceImpl<TaskDslMapper, TaskDslEntity
             WHERE td.task_id = ? AND td.environment = ? AND ni.sync_status = 1
             """;
         try {
-            List<String> outdated = jdbcTemplate.queryForList(sql, String.class, taskId, environment);
-            return objectMapper.writeValueAsString(outdated);
+            return jdbcTemplate.queryForList(sql, String.class, taskId, environment);
         } catch (Exception e) {
             throw new BusinessException("检测过时节点失败");
         }

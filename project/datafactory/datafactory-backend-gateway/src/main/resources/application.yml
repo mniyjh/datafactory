@@ -52,6 +52,14 @@ spring:
           uri: lb://datafactory-backend-configuration
           predicates:
             - Path=/component/**, /component
+        - id: user-service
+          uri: lb://datafactory-backend-configuration
+          predicates:
+            - Path=/users/**, /users
+        - id: role-service
+          uri: lb://datafactory-backend-configuration
+          predicates:
+            - Path=/roles/**, /roles
         - id: config-health-service
           uri: lb://datafactory-backend-configuration
           predicates:
@@ -76,6 +84,14 @@ spring:
           uri: lb://datafactory-backend-executor-server
           predicates:
             - Path=/statistics/**
+        - id: node-value-service
+          uri: lb://datafactory-backend-executor-server
+          predicates:
+            - Path=/task/**
+        - id: component-snapshot-service
+          uri: lb://datafactory-backend-executor-server
+          predicates:
+            - Path=/component-snapshot/**
         - id: executor-health-service
           uri: lb://datafactory-backend-executor-server
           predicates:
@@ -83,7 +99,7 @@ spring:
       globalcors:
         cors-configurations:
           '[/**]':
-            allowedOrigins: "${CORS_ORIGINS:http://localhost:5173}"
+            allowedOriginPatterns: "${CORS_ORIGINS:http://localhost:*,http://127.0.0.1:*,http://10.*:*,http://172.*:*,http://192.168.*:*}"
             allowedMethods: "GET,POST,PUT,DELETE,OPTIONS"
             allowedHeaders: "Authorization,Content-Type,X-Trace-Id"
             allowCredentials: true

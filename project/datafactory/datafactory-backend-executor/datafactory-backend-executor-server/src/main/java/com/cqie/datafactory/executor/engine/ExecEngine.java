@@ -409,6 +409,10 @@ public class ExecEngine {
                 outputs.put(code, effectiveResult.get(code));
             } else if (resolvedInputs.containsKey(code)) {
                 outputs.put(code, resolvedInputs.get(code));
+            } else {
+                // 输出参数名未匹配到原始结果中的任何key: 把整个原始结果作为该参数的值,
+                // 以便下游节点通过 UPSTREAM_OUTPUT 能拿到数据
+                outputs.put(code, effectiveResult);
             }
         }
         if (outputs.isEmpty()) {

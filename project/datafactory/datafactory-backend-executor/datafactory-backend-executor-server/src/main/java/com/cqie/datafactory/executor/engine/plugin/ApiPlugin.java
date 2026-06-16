@@ -41,8 +41,11 @@ public class ApiPlugin implements ComponentPlugin {
         String method = readFieldValue(fieldValues, "method", "httpMethod");
         if (method.isBlank()) method = "POST";
 
+        Map<String, Object> resolvedInputs = context.getResolvedInputs();
+
         if (!url.isBlank()) {
-            return doHttpCall(url, method, context.getResolvedInputs(), null, null, null, null, 30, null);
+            url = resolveUrlVariables(url, resolvedInputs);
+            return doHttpCall(url, method, resolvedInputs, null, null, null, null, 30, null);
         }
 
         String apiCode = readFieldValue(fieldValues, "apiCode", "api_code");
@@ -101,10 +104,23 @@ public class ApiPlugin implements ComponentPlugin {
                 ? api.getRequestMethod() : method;
         int timeout = api.getTimeout() != null && api.getTimeout() > 0 ? api.getTimeout() : 30;
 
-        return doHttpCall(api.getRequestUrl(), httpMethod, requestBody, headers,
+        String apiUrl = resolveUrlVariables(api.getRequestUrl(), context.getResolvedInputs());
+        return doHttpCall(apiUrl, httpMethod, requestBody, headers,
                 api.getContentType(), api.getQueryParams(),
                 buildAuthHeaders(api.getAuthType(), api.getAuthConfig()), timeout,
                 api.getApiType());
+    }
+
+    /**
+     * 替换 URL 中的 ${paramName} 占位符。
+     */
+    private String resolveUrlVariables(String url, Map<String, Object> params) {
+        if (url == null || url.isBlank() || params == null || params.isEmpty()) return url;
+        String result = url;
+        for (Map.Entry<String, Object> e : params.entrySet()) {
+            result = result.replace("${" + e.getKey() + "}", String.valueOf(e.getValue()));
+        }
+        return result;
     }
 
     /**

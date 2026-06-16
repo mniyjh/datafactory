@@ -285,6 +285,22 @@
                   <a-select v-else-if="column.dataIndex === 'dataType'" v-model:value="record.dataType" :disabled="readonly" style="min-width:120px">
                     <a-select-option v-for="item in valueTypeOptions" :key="item.value" :value="item.value">{{ item.label }}</a-select-option>
                   </a-select>
+                  <a-select v-else-if="column.dataIndex === 'sourceType'" v-model:value="record.sourceType" :disabled="readonly" style="min-width:160px" @change="onOutputParamSourceTypeChange(record)">
+                    <a-select-option v-for="item in sourceTypeOptions" :key="item.value" :value="item.value">{{ item.label }}</a-select-option>
+                  </a-select>
+                  <template v-else-if="column.dataIndex === 'sourceValue'">
+                    <a-tree-select
+                      v-if="record.sourceType === 'UPSTREAM_OUTPUT'"
+                      :value="normalizeSourceValueForTree(record.sourceValue)"
+                      @update:value="(val) => record.sourceValue = parseUpstreamValue(val)"
+                      :disabled="readonly"
+                      style="width:100%"
+                      :tree-data="buildUpstreamTreeData(selectedNode?.id)"
+                      :tree-default-expand-all="true"
+                      placeholder="选择上游输出字段"
+                    />
+                    <a-input v-else v-model:value="record.sourceValue" :disabled="readonly" placeholder="输入常量值或表达式" />
+                  </template>
                   <a-switch v-else-if="column.dataIndex === 'requiredFlag'" v-model:checked="record.requiredBool" :disabled="readonly" />
                   <a-button v-else-if="column.dataIndex === 'op'" danger size="small" :disabled="readonly" @click="removeNodeOutputParam(record.__rowId)">删除</a-button>
                 </template>
@@ -827,11 +843,13 @@ const unifiedParamColumns = [
   { title: '必填', dataIndex: 'requiredFlag', width: 90 },
   { title: '操作', dataIndex: 'op', width: 80 }
 ];
-// 输出参数列：不需要参数来源/来源值（输出只是白名单，值由插件逻辑决定）
+// 输出参数列：与输入参数对齐，支持参数来源/来源值/必填
 const outputParamColumnsDef = [
   { title: '参数编码', dataIndex: 'paramCode', width: 200 },
   { title: '参数名称', dataIndex: 'paramName', width: 180 },
   { title: '数据类型', dataIndex: 'dataType', width: 120 },
+  { title: '参数来源', dataIndex: 'sourceType', width: 150 },
+  { title: '来源值', dataIndex: 'sourceValue', width: 240 },
   { title: '必填', dataIndex: 'requiredFlag', width: 90 },
   { title: '操作', dataIndex: 'op', width: 80 }
 ];
@@ -1312,7 +1330,9 @@ const openNodeEditor = async (nodeId) => {
       ...item,
       __rowId: `local_output_${idx}_${item.paramCode || ''}`,
       requiredBool: Number(item.requiredFlag || 0) === 1,
-      sourceType: 'CONST'
+      sourceType: item.sourceType || 'CONST',
+      sourceValue: item.sourceValue || '',
+      sourceRef: []
     }));
   }
 
@@ -1687,6 +1707,9 @@ const addNodeOutputParam = () => {
     paramName: '',
     paramCode: '',
     dataType: 'STRING',
+    sourceType: 'CONST',
+    sourceValue: '',
+    sourceRef: [],
     requiredBool: false,
     readonlyParam: false
   });
@@ -1698,6 +1721,27 @@ const removeNodeOutputParam = (__rowId) => {
     return;
   }
   nodeOutputParams.value = nodeOutputParams.value.filter(item => item.__rowId !== __rowId);
+};
+
+const onOutputParamSourceTypeChange = (record) => {
+  if (record.sourceType === 'UPSTREAM_OUTPUT') {
+    const options = buildUpstreamCascaderOptions(selectedNode.value?.id);
+    if (!options.length) {
+      record.sourceRef = [];
+      record.sourceValue = '';
+      message.info('暂无可选的上游节点参数');
+    } else {
+      const firstNode = options[0]?.value;
+      const firstParam = options[0]?.children?.[0]?.value;
+      if (firstNode && firstParam) {
+        record.sourceRef = [firstNode, firstParam];
+        record.sourceValue = { nodeId: firstNode, paramCode: firstParam };
+      }
+    }
+  } else {
+    record.sourceRef = [];
+    record.sourceValue = record.sourceValue || '';
+  }
 };
 
 const selectEdge = (edgeId) => {

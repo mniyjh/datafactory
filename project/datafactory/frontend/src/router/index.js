@@ -50,7 +50,7 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   authStore.restoreFromStorage();
-  if (to.path !== '/login' && !authStore.isLoggedIn) {
+  if (to.path !== '/login' && to.path !== '/forgot-password' && !authStore.isLoggedIn) {
     next('/login');
   } else if (to.path === '/login' && authStore.isLoggedIn) {
     next('/dashboard');

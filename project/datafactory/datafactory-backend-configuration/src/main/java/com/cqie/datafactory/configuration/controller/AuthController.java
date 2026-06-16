@@ -59,4 +59,10 @@ public class AuthController {
         authService.resetPassword(req.getUsername(), req.getEmail(), req.getCode());
         return Result.success();
     }
+
+    @Operation(summary = "检查用户是否可用忘记密码功能")
+    @GetMapping("/forgot-password/check")
+    public Result<Boolean> checkForgotPassword(@RequestParam String username) {
+        return Result.success(authService.canUseForgotPassword(username));
+    }
 }

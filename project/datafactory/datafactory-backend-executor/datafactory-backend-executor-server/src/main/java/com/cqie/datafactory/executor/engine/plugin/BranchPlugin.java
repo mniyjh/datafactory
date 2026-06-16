@@ -3,6 +3,7 @@ package com.cqie.datafactory.executor.engine.plugin;
 import com.cqie.datafactory.common.exception.BusinessException;
 import com.cqie.datafactory.executor.engine.core.model.EdgeDef;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.googlecode.aviator.AviatorEvaluator;
 import org.springframework.stereotype.Component;
 
@@ -14,6 +15,7 @@ import java.util.regex.Pattern;
 public class BranchPlugin implements ComponentPlugin {
 
     private static final Pattern VAR_PATTERN = Pattern.compile("\\$\\{(.+?)\\}");
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Override
     public Set<String> supportedTypes() { return Set.of("BRANCH"); }
@@ -233,9 +235,46 @@ public class BranchPlugin implements ComponentPlugin {
         if (resolvedInputs.containsKey(varName)) return resolvedInputs.get(varName);
         if (varName.contains(".")) {
             String[] parts = varName.split("\\.", 2);
+            // Try parts[0] as nodeId first
             Map<String, Object> nodeOutput = upstreamOutputs.get(parts[0]);
-            if (nodeOutput != null && nodeOutput.containsKey(parts[1])) {
-                return nodeOutput.get(parts[1]);
+            if (nodeOutput != null) {
+                // Direct key lookup in the node's output
+                if (nodeOutput.containsKey(parts[1])) {
+                    return nodeOutput.get(parts[1]);
+                }
+                // parts[0] might be a paramCode whose value is a JSON string; parse and drill
+                Object parentVal = nodeOutput.get(parts[0]);
+                if (parentVal instanceof String s && s.trim().startsWith("{")) {
+                    try {
+                        Map<String, Object> parsed = OBJECT_MAPPER.readValue(s, Map.class);
+                        if (parsed.containsKey(parts[1])) return parsed.get(parts[1]);
+                    } catch (Exception ignore) {}
+                }
+            }
+            // Try parts[0] as a paramCode across all upstream outputs
+            for (Map<String, Object> out : upstreamOutputs.values()) {
+                if (out.containsKey(parts[0])) {
+                    Object val = out.get(parts[0]);
+                    if (val instanceof Map && ((Map<String, Object>) val).containsKey(parts[1])) {
+                        return ((Map<String, Object>) val).get(parts[1]);
+                    }
+                    // JSON string value: parse and drill into nested field
+                    if (val instanceof String s && s.trim().startsWith("{")) {
+                        try {
+                            Map<String, Object> parsed = OBJECT_MAPPER.readValue(s, Map.class);
+                            if (parsed.containsKey(parts[1])) return parsed.get(parts[1]);
+                        } catch (Exception ignore) {}
+                    }
+                }
+                // Also search nested maps inside this node's output
+                for (Object v : out.values()) {
+                    if (v instanceof String s && s.trim().startsWith("{")) {
+                        try {
+                            Map<String, Object> parsed = OBJECT_MAPPER.readValue(s, Map.class);
+                            if (parsed.containsKey(parts[1])) return parsed.get(parts[1]);
+                        } catch (Exception ignore) {}
+                    }
+                }
             }
         }
         for (Map<String, Object> nodeOutput : upstreamOutputs.values()) {

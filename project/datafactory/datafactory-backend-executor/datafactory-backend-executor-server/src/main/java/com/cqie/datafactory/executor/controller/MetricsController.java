@@ -11,7 +11,7 @@ import java.time.LocalDate;
 import java.util.*;
 
 @RestController
-@RequestMapping("/metrics")
+@RequestMapping("/executor/metrics")
 public class MetricsController {
 
     private final JdbcTemplate jdbcTemplate;

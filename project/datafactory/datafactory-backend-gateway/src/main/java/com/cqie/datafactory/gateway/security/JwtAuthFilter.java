@@ -34,6 +34,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
     private static final List<String> WHITELIST = List.of(
             "/auth/login",
             "/auth/refresh",
+            "/auth/forgot-password",
             "/actuator/health",
             "/swagger-ui",
             "/v3/api-docs"
@@ -41,6 +42,9 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        // 先读取原始请求中的 X-Tenant-Id（用于后续校验），然后清除所有安全敏感头
+        String requestedTenantId = exchange.getRequest().getHeaders().getFirst("X-Tenant-Id");
+
         // Strip any incoming X-User-* headers to prevent spoofing, add internal auth key
         ServerHttpRequest cleanedRequest = exchange.getRequest().mutate()
                 .headers(h -> {
@@ -88,6 +92,16 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
             List<String> roles = claims.get("roles", List.class);
             @SuppressWarnings("unchecked")
             List<String> permissions = claims.get("permissions", List.class);
+            @SuppressWarnings("unchecked")
+            List<?> tenantIdsRaw = claims.get("tenantIds", List.class);
+            List<Long> tenantIds = tenantIdsRaw != null
+                    ? tenantIdsRaw.stream()
+                        .map(o -> o instanceof Number ? ((Number) o).longValue() : Long.parseLong(o.toString()))
+                        .toList()
+                    : List.of();
+
+            // 解析并校验租户ID：前端传入的 X-Tenant-Id 必须在 JWT 授权的租户列表中
+            String resolvedTenantId = resolveTenantId(requestedTenantId, tenantIds);
 
             // 透传用户信息到下游微服务
             ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
@@ -95,9 +109,10 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                     .header("X-User-Username", username)
                     .header("X-User-Roles", roles != null ? String.join(",", roles) : "")
                     .header("X-User-Permissions", permissions != null ? String.join(",", permissions) : "")
+                    .header("X-Tenant-Id", resolvedTenantId)
                     .build();
 
-            log.debug("JWT validated: user={} userId={} path={}", username, userId, path);
+            log.debug("JWT validated: user={} userId={} tenant={} path={}", username, userId, resolvedTenantId, path);
 
             return chain.filter(exchange.mutate().request(mutatedRequest).build());
 
@@ -106,6 +121,27 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
             return exchange.getResponse().setComplete();
         }
+    }
+
+    /**
+     * 解析租户ID：如果前端传入的租户ID在JWT授权的租户列表中则使用，否则使用第一个
+     */
+    private String resolveTenantId(String requestedTenantId, List<Long> tenantIds) {
+        if (tenantIds.isEmpty()) {
+            return "0"; // 无租户权限，返回0（不会匹配任何数据）
+        }
+        if (StringUtils.hasText(requestedTenantId)) {
+            try {
+                Long requested = Long.parseLong(requestedTenantId);
+                if (tenantIds.contains(requested)) {
+                    return requestedTenantId;
+                }
+                log.warn("Tenant {} not in user's allowed tenants {}, falling back to first", requested, tenantIds);
+            } catch (NumberFormatException e) {
+                log.warn("Invalid X-Tenant-Id format: {}", requestedTenantId);
+            }
+        }
+        return String.valueOf(tenantIds.get(0));
     }
 
     private Claims parseToken(String token) {

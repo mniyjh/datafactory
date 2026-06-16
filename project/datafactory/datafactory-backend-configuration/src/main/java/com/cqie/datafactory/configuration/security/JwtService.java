@@ -30,7 +30,8 @@ public class JwtService {
 
     /** 生成 Access Token */
     public String generateAccessToken(Long userId, String username,
-                                       List<String> roles, List<String> permissions) {
+                                       List<String> roles, List<String> permissions,
+                                       List<Long> tenantIds) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + jwtProperties.getAccessTokenExpiration() * 1000);
 
@@ -40,6 +41,7 @@ public class JwtService {
                 .claim("username", username)
                 .claim("roles", roles)
                 .claim("permissions", permissions)
+                .claim("tenantIds", tenantIds != null ? tenantIds : List.of())
                 .issuedAt(now)
                 .expiration(expiry)
                 .id(UUID.randomUUID().toString())
@@ -114,5 +116,17 @@ public class JwtService {
     @SuppressWarnings("unchecked")
     public List<String> getPermissionsFromToken(String token) {
         return parseToken(token).get("permissions", List.class);
+    }
+
+    /** 从 Token 中提取租户ID列表 */
+    @SuppressWarnings("unchecked")
+    public List<Long> getTenantIdsFromToken(String token) {
+        List<?> raw = parseToken(token).get("tenantIds", List.class);
+        if (raw == null || raw.isEmpty()) {
+            return List.of();
+        }
+        return raw.stream()
+                .map(o -> o instanceof Number ? ((Number) o).longValue() : Long.parseLong(o.toString()))
+                .toList();
     }
 }

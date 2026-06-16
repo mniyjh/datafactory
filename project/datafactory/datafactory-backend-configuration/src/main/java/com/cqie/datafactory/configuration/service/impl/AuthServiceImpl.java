@@ -192,4 +192,16 @@ public class AuthServiceImpl implements AuthService {
         userMapper.updateById(user);
         log.info("Password reset for user {}", username);
     }
+
+    @Override
+    public boolean canUseForgotPassword(String username) {
+        User user = userMapper.selectOne(
+            new LambdaQueryWrapper<User>().eq(User::getUsername, username)
+        );
+        if (user == null) {
+            return true; // 不存在的用户名不泄露信息，前端照常显示
+        }
+        List<String> roles = userMapper.selectRoleCodesByUserId(user.getId());
+        return !roles.contains("super_admin");
+    }
 }

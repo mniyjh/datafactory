@@ -310,8 +310,19 @@ body,
 }
 
 /* ========== B/W Theme Overrides ========== */
-.ant-btn-primary { background: #111 !important; border-color: #111 !important; }
-.ant-btn-primary:hover { background: #333 !important; border-color: #333 !important; }
+.ant-btn-primary { background: #111 !important; border-color: #111 !important; color: #fff !important; }
+.ant-btn-primary:hover { background: #333 !important; border-color: #333 !important; color: #fff !important; }
+
+/* ghost 按钮：透明背景 + 黑色文字/边框，不参与黑底覆盖 */
+.ant-btn-background-ghost.ant-btn-primary {
+  background: transparent !important;
+  color: #111 !important;
+  border-color: #111 !important;
+}
+.ant-btn-background-ghost.ant-btn-primary:hover {
+  color: #fff !important;
+  background: #111 !important;
+}
 .ant-tag { border-radius: 3px; }
 .ant-switch-checked { background: #111 !important; }
 
