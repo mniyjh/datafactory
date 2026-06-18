@@ -23,6 +23,7 @@ public class NodeExecutionLog {
     private Integer retryCount;
     private String inputData;
     private String outputData;
+    private String textOutput;
     private String errorMessage;
 
     // 标准化调试字段

@@ -90,7 +90,6 @@ CREATE TABLE IF NOT EXISTS datasource_db_version (
   db_id BIGINT NOT NULL,
   version VARCHAR(50) NOT NULL,
   environment VARCHAR(20) NOT NULL COMMENT 'DEV/TEST/PROD',
-  dsl_content LONGTEXT NOT NULL,
   db_type VARCHAR(32) DEFAULT NULL,
   db_name VARCHAR(128) DEFAULT NULL COMMENT '数据库名称(Schema)',
   jdbc_url VARCHAR(512) DEFAULT NULL,
@@ -218,8 +217,6 @@ CREATE TABLE IF NOT EXISTS script_version (
   env_vars LONGTEXT DEFAULT NULL COMMENT 'JSON: {"PATH": "/usr/bin"}',
   work_dir VARCHAR(256) DEFAULT '/tmp',
   interpreter_path VARCHAR(256) DEFAULT '/usr/bin/python3',
-  max_memory INT DEFAULT 512,
-  cpu_limit DECIMAL(3, 1) DEFAULT 1.0,
   change_log VARCHAR(500) DEFAULT NULL,
   is_current TINYINT NOT NULL DEFAULT 0,
   publish_status TINYINT NOT NULL DEFAULT 0 COMMENT '0-待发布 1-已发布',
@@ -274,34 +271,6 @@ CREATE TABLE component_field (
   UNIQUE KEY uk_component_field_code (component_id, field_code),
   KEY idx_component_id (component_id),
   KEY idx_sort_order (sort_order)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS component_io_param (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  tenant_id BIGINT NOT NULL DEFAULT 1,
-  component_id BIGINT NOT NULL,
-  io_type VARCHAR(8) NOT NULL DEFAULT 'INPUT' COMMENT 'INPUT/OUTPUT',
-  param_code VARCHAR(64) NOT NULL,
-  param_name VARCHAR(128) NOT NULL,
-  data_type VARCHAR(32) NOT NULL DEFAULT 'STRING' COMMENT 'STRING/NUMBER/BOOLEAN',
-  required_flag TINYINT NOT NULL DEFAULT 0,
-  source_type VARCHAR(32) NOT NULL DEFAULT 'CONST' COMMENT 'CONST/UPSTREAM_OUTPUT/EXPRESSION',
-  source_value LONGTEXT DEFAULT NULL COMMENT '来源取值表达式/结构化JSON',
-  default_value LONGTEXT DEFAULT NULL COMMENT '默认值（参数空间内）',
-  param_space VARCHAR(32) NOT NULL DEFAULT 'NODE' COMMENT 'NODE/TASK/ENV/GLOBAL',
-  sort_order INT NOT NULL DEFAULT 1,
-  description VARCHAR(500) DEFAULT NULL,
-  created_by VARCHAR(64) DEFAULT 'admin',
-  created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_by VARCHAR(64) DEFAULT 'admin',
-  updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uk_component_param_code (component_id, io_type, param_code),
-  KEY idx_component_id (component_id),
-  KEY idx_io_type (io_type),
-  KEY idx_param_code (param_code),
-  KEY idx_data_type (data_type),
-  KEY idx_source_type (source_type),
-  KEY idx_param_space (param_space)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =============================================
@@ -368,7 +337,6 @@ CREATE TABLE IF NOT EXISTS node_io_param_value (
   source_type VARCHAR(32) DEFAULT NULL,
   source_value LONGTEXT DEFAULT NULL,
   param_value LONGTEXT DEFAULT NULL,
-  param_space VARCHAR(32) DEFAULT NULL,
   param_snapshot LONGTEXT DEFAULT NULL COMMENT '参数定义快照(JSON)',
   sort_order INT NOT NULL DEFAULT 1,
   deprecated_flag TINYINT NOT NULL DEFAULT 0,
@@ -401,6 +369,7 @@ CREATE TABLE IF NOT EXISTS execution_log (
   duration_ms BIGINT DEFAULT 0,
   input_params LONGTEXT DEFAULT NULL,
   output_result LONGTEXT DEFAULT NULL,
+  text_output LONGTEXT DEFAULT NULL COMMENT '格式化文本输出（自然语言报告）',
   error_message LONGTEXT DEFAULT NULL,
   idempotency_key VARCHAR(128) DEFAULT NULL COMMENT '幂等键: taskId_nodeId_timestamp',
   created_by VARCHAR(64) DEFAULT 'admin',
@@ -428,6 +397,7 @@ CREATE TABLE IF NOT EXISTS node_execution_log (
   retry_count INT DEFAULT 0,
   input_data LONGTEXT DEFAULT NULL,
   output_data LONGTEXT DEFAULT NULL,
+  text_output LONGTEXT DEFAULT NULL COMMENT '格式化文本输出（自然语言报告）',
   error_message LONGTEXT DEFAULT NULL,
   field_snapshot LONGTEXT DEFAULT NULL,
   io_schema LONGTEXT DEFAULT NULL,
@@ -739,11 +709,11 @@ INSERT INTO sys_role (name, code, description, status) VALUES
 INSERT INTO sys_role_permission (role_id, permission_id)
 SELECT (SELECT id FROM sys_role WHERE code = 'super_admin'), id FROM sys_permission;
 
--- developer: 任务/脚本/数据源 CRUD + 执行 + 日志
+-- developer: 任务/脚本/数据源 CRUD + 执行 + 日志 + 监控
 INSERT INTO sys_role_permission (role_id, permission_id)
 SELECT (SELECT id FROM sys_role WHERE code = 'developer'), id FROM sys_permission
 WHERE code IN ('task:read', 'task:write', 'task:execute', 'datasource:read', 'datasource:write',
-               'script:read', 'script:write', 'schedule:read', 'log:read');
+               'script:read', 'script:write', 'schedule:read', 'monitor:read', 'log:read');
 
 -- operator: 查看 + 执行 + 监控
 INSERT INTO sys_role_permission (role_id, permission_id)
@@ -851,3 +821,49 @@ INSERT IGNORE INTO component_field (component_id, field_code, field_name, value_
 INSERT IGNORE INTO component_field (component_id, field_code, field_name, value_type, widget_type, widget_props, required_flag, sort_order, description) VALUES
 (8, 'subTaskId', '选择子任务', 'STRING', 'MULTI_SELECT', '{"optionsSource":{"sourceType":"TASK"}}', 1, 1, '从任务管理中选择已发布到生产环境的任务'),
 (8, 'result_var', '结果变量', 'STRING', 'TEXTAREA', NULL, 0, 2, '子任务结果绑定的变量名');
+
+
+-- =============================================
+-- 14. 天气出游判断流程 — 业务数据库
+-- =============================================
+CREATE DATABASE IF NOT EXISTS datafactory_weather
+  DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_unicode_ci;
+USE datafactory_weather;
+
+CREATE TABLE IF NOT EXISTS travel_history (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    city VARCHAR(64) NOT NULL COMMENT '城市',
+    travel_date DATE COMMENT '出行日期',
+    weather_desc VARCHAR(128) COMMENT '当天天气',
+    temperature INT COMMENT '温度(°C)',
+    suitable_flag TINYINT DEFAULT 1 COMMENT '1=适合 0=不适合',
+    remark VARCHAR(256) COMMENT '备注',
+    created_time DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO travel_history (city, travel_date, weather_desc, temperature, suitable_flag, remark) VALUES
+('北京','2026-05-01','晴',22,1,'五一出行，天气很好'),
+('上海','2026-05-15','小雨',18,0,'下雨取消'),
+('三亚','2026-04-20','多云',30,1,'海边度假'),
+('哈尔滨','2026-06-01','晴',25,1,'凉爽宜人');
+
+-- =============================================
+-- 15. 天气出游判断流程 — 基础信息（版本/DSL数据参照配置清单手动创建）
+-- =============================================
+USE datafactory;
+
+INSERT INTO datasource_db (tenant_id, db_code, db_name, db_type, description, status) VALUES
+(1, 'TRAVEL_DB', '旅行数据库', 'MySQL', '本地MySQL旅行历史数据', 1);
+
+INSERT INTO external_api (tenant_id, api_code, api_name, api_type, description, status) VALUES
+(1, 'WEATHER_API', '天气查询接口', 'REST', '调用wttr.in获取城市实时天气JSON', 1);
+
+INSERT INTO script (tenant_id, script_code, script_name, script_type, description, status) VALUES
+(1, 'SQL_TRAVEL_HISTORY',  '查询旅行历史记录', 'SQL',    '根据城市查询历史出行记录',            1),
+(1, 'PY_WEATHER_ANALYZE',  '天气出游分析脚本', 'PYTHON', '解析天气JSON综合评分判断是否适合出游', 1),
+(1, 'SH_TRAVEL_NOTIFY',    '出行通知脚本',     'SHELL',  '解析上游结果输出出行通知',            1),
+(1, 'PY_INDOOR_PLAN',      '室内活动推荐脚本', 'PYTHON', '根据城市返回室内活动推荐列表',        1);
+
+INSERT INTO task (tenant_id, task_code, task_name, description, version, status, created_by) VALUES
+(1, 'INDOOR_PLAN',          '室内活动推荐',     '天气不适合出游时推荐室内活动方案',   '1.0.0', 1, 'admin'),
+(1, 'WEATHER_TRAVEL_CHECK', '天气出游判断流程', '根据城市天气综合判断是否适合出游',  '1.0.0', 1, 'admin');

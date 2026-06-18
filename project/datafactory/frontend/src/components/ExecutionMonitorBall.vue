@@ -76,7 +76,10 @@
                     <CloseOutlined v-else-if="node.status === 'FAILURE'" />
                     <ClockCircleOutlined v-else />
                   </div>
-                  <span class="node-name">{{ node.name }}</span>
+                  <a-tooltip v-if="node.textPreview" :title="node.textPreview" placement="right" :overlay-style="{ maxWidth: '420px' }">
+                    <span class="node-name has-output">{{ node.name }}</span>
+                  </a-tooltip>
+                  <span v-else class="node-name">{{ node.name }}</span>
                 </div>
               </div>
               <div v-if="exec.nodes.length === 0" class="flow-init">
@@ -432,13 +435,24 @@ const startPolling = (exec) => {
         const nodeRes = await taskApi.getNodeLogs(exec.executionId);
         const nodes = Array.isArray(nodeRes.data?.data) ? nodeRes.data.data : [];
         if (nodes.length > 0) {
-          currentExec.nodes = nodes.map(n => ({
-            id: n.nodeId,
-            name: n.nodeName,
-            status: String(n.status || 'PENDING').toUpperCase(),
-            startTime: n.startTime,
-            seq: n.seq
-          }));
+          currentExec.nodes = nodes.map(n => {
+            const nodeName = n.nodeName || n.nodeId || '未命名';
+            // 生成文本预览（前120字符，用于 tooltip）
+            let textPreview = '';
+            if (n.textOutput) {
+              textPreview = n.textOutput.length > 180
+                ? n.textOutput.substring(0, 180) + '...'
+                : n.textOutput;
+            }
+            return {
+              id: n.nodeId,
+              name: nodeName,
+              status: String(n.status || 'PENDING').toUpperCase(),
+              startTime: n.startTime,
+              seq: n.seq,
+              textPreview
+            };
+          });
         }
       } catch (_) {
         // ignore
@@ -762,6 +776,11 @@ window.addEventListener('resize', () => {
 .node-name {
   font-size: 13px;
   color: #555;
+}
+
+.node-name.has-output {
+  cursor: help;
+  border-bottom: 1px dashed #aaa;
 }
 
 .error-msg {

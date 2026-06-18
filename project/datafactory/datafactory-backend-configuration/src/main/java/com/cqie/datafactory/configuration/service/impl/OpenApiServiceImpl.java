@@ -14,6 +14,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.web.client.RestTemplate;
 
 import jakarta.annotation.Resource;
@@ -30,6 +33,8 @@ public class OpenApiServiceImpl extends ServiceImpl<OpenApiMapper, OpenApi> impl
 
   @Value("${executor.base-url:http://127.0.0.1:8082}")
   private String executorBaseUrl;
+  @Value("${security.internal-auth-key:}")
+  private String internalAuthKey;
   private final RestTemplate restTemplate = new RestTemplate();
 
   @Resource
@@ -135,7 +140,7 @@ public class OpenApiServiceImpl extends ServiceImpl<OpenApiMapper, OpenApi> impl
   @Override
   public Map<String, Object> queryResult(String executionId) {
     List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-        "SELECT status, output_result, error_message, duration_ms FROM execution_log WHERE execution_id = ?",
+        "SELECT status, output_result, text_output, error_message, duration_ms FROM execution_log WHERE execution_id = ?",
         executionId);
     if (rows.isEmpty()) {
       Map<String, Object> result = new HashMap<>();
@@ -150,6 +155,7 @@ public class OpenApiServiceImpl extends ServiceImpl<OpenApiMapper, OpenApi> impl
     result.put("durationMs", log.get("duration_ms"));
     if ("SUCCESS".equals(log.get("status"))) {
       result.put("output", log.get("output_result"));
+      result.put("textOutput", log.get("text_output"));
     } else if ("FAILURE".equals(log.get("status"))) {
       result.put("errorMessage", log.get("error_message"));
     }
@@ -200,8 +206,18 @@ public class OpenApiServiceImpl extends ServiceImpl<OpenApiMapper, OpenApi> impl
     }
 
     String executeUrl = executorBaseUrl + "/tasks/" + api.getTaskId() + "/execute";
+
+    // 构建带内部认证头的请求
+    HttpHeaders headers = new HttpHeaders();
+    headers.setContentType(MediaType.APPLICATION_JSON);
+    if (StringUtils.hasText(internalAuthKey)) {
+      headers.set("X-Internal-Auth", internalAuthKey);
+    }
+    HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(
+        payload == null ? new HashMap<>() : payload, headers);
+
     @SuppressWarnings("unchecked")
-    Map<String, Object> executorRes = restTemplate.postForObject(executeUrl, payload == null ? new HashMap<>() : payload, Map.class);
+    Map<String, Object> executorRes = restTemplate.postForObject(executeUrl, requestEntity, Map.class);
 
     Object executionId = null;
     if (executorRes != null) {

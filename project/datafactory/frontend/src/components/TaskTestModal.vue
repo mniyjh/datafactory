@@ -94,8 +94,8 @@
               请在左侧配置完成后点击 OK 执行测试
             </div>
 
-            <div v-if="outputJson" class="output-json-area">
-              <pre>{{ outputJson }}</pre>
+            <div v-if="outputJson || logTextOutput" class="output-json-area">
+              <SmartOutputViewer :value="outputJson" :text-output="logTextOutput" :max-height="480" empty-text="执行完成，暂无输出数据" />
             </div>
           </div>
         </div>
@@ -125,6 +125,7 @@ import { message } from 'ant-design-vue';
 import { taskApi } from '../api/task';
 import { componentApi } from '../api/componentApi';
 import FlowViewer from './FlowViewer.vue';
+import SmartOutputViewer from './SmartOutputViewer.vue';
 const root = ref(null);
 
 const props = defineProps({
@@ -149,6 +150,7 @@ const executing = ref(false);
 const executionResult = ref(false);
 const executionError = ref('');
 const outputJson = ref('');
+const logTextOutput = ref('');
 
 const testConfigs = ref([]);
 const configsLoading = ref(false);
@@ -387,7 +389,7 @@ const loadDefaultParams = async () => {
           nodeName: node.name,
           nodeType: node.type || '',
           componentCode: node.componentCode || '',
-          testValue: ''
+          testValue: (param.sourceType === 'CONST' && param.sourceValue) ? ensureString(param.sourceValue) : ''
         });
       });
     });
@@ -579,10 +581,12 @@ const handleExecute = async () => {
     // Build payload from input params' testValues
     const payload = {};
     ioParamList.value
-      .filter(p => p.ioType === 'INPUT' && p.testValue)
+      .filter(p => p.ioType === 'INPUT' && p.nodeType === 'START' && p.testValue != null)
       .forEach(p => {
         payload[p.paramCode] = p.testValue;
       });
+
+    // 必须显式携带版本ID，后端 TEST/PROD 环境要求 versionId
     if (props.versionId) {
       payload.versionId = props.versionId;
     }
@@ -614,6 +618,7 @@ const handleExecute = async () => {
             executionError.value = log.status === 'FAILURE' ? (log.errorMessage || '执行失败') : '';
 
             // 填充测试执行结果到 outputJson 区域
+            logTextOutput.value = log.textOutput || '';
             if (log.status === 'FAILURE') {
               outputJson.value = JSON.stringify({
                 status: 'FAILURE',

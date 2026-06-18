@@ -3,6 +3,7 @@ package com.cqie.datafactory.executor.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.cqie.datafactory.common.context.TenantContext;
 import com.cqie.datafactory.common.exception.BusinessException;
 import com.cqie.datafactory.common.result.PageResult;
 import com.cqie.datafactory.common.util.CascadeDeleteHelper;
@@ -21,6 +22,7 @@ import com.cqie.datafactory.executor.service.ExecutorTaskService;
 import com.cqie.datafactory.executor.service.TaskDslService;
 import com.cqie.datafactory.executor.service.dto.ExecutorTaskCreateDTO;
 import com.cqie.datafactory.executor.service.dto.ExecutorTaskUpdateDTO;
+import com.cqie.datafactory.executor.util.OutputTextExtractor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -109,7 +111,9 @@ public class ExecutorTaskServiceImpl extends ServiceImpl<ExecutorTaskMapper, Exe
         }
 
         long[] startMsHolder = new long[1];
+        final Long currentTenantId = TenantContext.get();
         taskExecutor.execute(() -> {
+            TenantContext.set(currentTenantId);
             try {
                 // 创建并保存开始执行日志
                 ExecutionLog logData = new ExecutionLog();
@@ -174,6 +178,11 @@ public class ExecutorTaskServiceImpl extends ServiceImpl<ExecutorTaskMapper, Exe
                             }
                             try {
                                 nodeLog.setOutputData(objectMapper.writeValueAsString(record.outputs));
+                                // 提取人类可读的格式化文本
+                                String textOutput = OutputTextExtractor.extract(record.outputs);
+                                if (textOutput != null) {
+                                    nodeLog.setTextOutput(textOutput);
+                                }
                             } catch (Exception ignored) {
                             }
                             executionLogService.sendNodeLog(nodeLog);
@@ -182,6 +191,11 @@ public class ExecutorTaskServiceImpl extends ServiceImpl<ExecutorTaskMapper, Exe
 
                 logData.setStatus("SUCCESS");
                 logData.setOutputResult(safeWriteJson(finalOutput));
+                // 提取人类可读的格式化文本
+                String textOutput = OutputTextExtractor.extract(finalOutput);
+                if (textOutput != null) {
+                    logData.setTextOutput(textOutput);
+                }
                 finalizeLog(logData);
 
                 // 记录数据血缘
@@ -323,6 +337,16 @@ public class ExecutorTaskServiceImpl extends ServiceImpl<ExecutorTaskMapper, Exe
         try {
             return objectMapper.writeValueAsString(value);
         } catch (Exception ex) {
+            log.error("safeWriteJson serialization failed: {}", ex.getMessage(), ex);
+            // 兜底: 尝试将 ConcurrentHashMap 转为普通 HashMap 后再序列化
+            try {
+                if (value instanceof Map) {
+                    Map<String, Object> plain = new LinkedHashMap<>((Map<String, Object>) value);
+                    return objectMapper.writeValueAsString(plain);
+                }
+            } catch (Exception ex2) {
+                log.error("safeWriteJson fallback also failed: {}", ex2.getMessage());
+            }
             return "{}";
         }
     }

@@ -101,8 +101,8 @@
             row-key="key"
           />
         </a-descriptions-item>
-        <a-descriptions-item label="输出结果(JSON)" :span="2">
-          <pre class="log-json">{{ formatJson(currentLog.outputResult) }}</pre>
+        <a-descriptions-item label="输出结果" :span="2">
+          <SmartOutputViewer :value="currentLog.outputResult" :text-output="currentLog.textOutput" :max-height="320" empty-text="暂无输出数据" />
         </a-descriptions-item>
         <a-descriptions-item label="输出结果(表格)" :span="2">
           <a-table
@@ -179,7 +179,7 @@
               />
             </a-descriptions-item>
             <a-descriptions-item label="输出结果">
-              <pre class="log-json-small">{{ formatJson(selectedNode.outputData) }}</pre>
+              <SmartOutputViewer :value="selectedNode.outputData" :text-output="selectedNode.textOutput" :max-height="240" empty-text="暂无输出数据" />
             </a-descriptions-item>
             <a-descriptions-item label="输出结果(表格)">
               <a-table
@@ -209,6 +209,7 @@ import dayjs from 'dayjs';
 import { taskApi } from '../api/task';
 import { scheduleApi } from '../api/scheduleApi';
 import { executionStore } from '../store/execution';
+import SmartOutputViewer from '../components/SmartOutputViewer.vue';
 const pageRoot = ref(null);
 
 const route = useRoute();
